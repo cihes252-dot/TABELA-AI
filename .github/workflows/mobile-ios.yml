@@ -1,0 +1,27 @@
+name: Build TABELA AI iOS
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'native/ios/**'
+      - 'app/v11/**'
+      - '.github/workflows/mobile-ios.yml'
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show Xcode version
+        run: xcodebuild -version
+      - name: Build iOS Simulator app
+        run: >-
+          xcodebuild
+          -project native/ios/TabelaAIMobile/TabelaAI.xcodeproj
+          -scheme TabelaAI
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build
