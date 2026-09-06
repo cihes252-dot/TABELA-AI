@@ -15,7 +15,7 @@
     return c;
   }
 
-  function crop(img, x, y, w, h, scale = 2) {
+  function crop(img, x, y, w, h, scale = 2.5) {
     const c = makeCanvas(w * scale, h * scale);
     const ctx = c.getContext('2d');
     ctx.imageSmoothingEnabled = true;
@@ -24,7 +24,7 @@
     return c;
   }
 
-  function enhance(source, threshold = false) {
+  function grayscaleContrast(source, contrast = 2.0, threshold = null, invert = false) {
     const c = makeCanvas(source.width, source.height);
     const ctx = c.getContext('2d');
     ctx.drawImage(source, 0, 0);
@@ -35,8 +35,9 @@
     mean /= (d.length / 4);
     for (let i = 0; i < d.length; i += 4) {
       let g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
-      g = Math.max(0, Math.min(255, (g - mean) * 1.85 + 128));
-      if (threshold) g = g > 145 ? 255 : 0;
+      g = Math.max(0, Math.min(255, (g - mean) * contrast + 128));
+      if (threshold !== null) g = g > threshold ? 255 : 0;
+      if (invert) g = 255 - g;
       d[i] = d[i+1] = d[i+2] = g;
     }
     ctx.putImageData(im, 0, 0);
@@ -46,22 +47,37 @@
   function cleanText(s) {
     return (s || '')
       .replace(/[|_~`^]+/g, ' ')
+      .replace(/[“”]/g, '"')
       .replace(/\s+/g, ' ')
+      .replace(/^[^A-Za-zÇĞİÖŞÜçğıöşü0-9]+|[^A-Za-zÇĞİÖŞÜçğıöşü0-9]+$/g, '')
       .trim();
   }
 
-  function textQuality(text, confidence) {
+  function normalizeSpacedLetters(text) {
     const t = cleanText(text);
+    const tokens = t.split(/\s+/).filter(Boolean);
+    if (tokens.length < 3) return t;
+    const singles = tokens.filter(x => /^[A-Za-zÇĞİÖŞÜçğıöşü0-9]$/.test(x)).length;
+    const short = tokens.filter(x => /^[A-Za-zÇĞİÖŞÜçğıöşü0-9]{1,2}$/.test(x)).length;
+    if ((singles / tokens.length >= 0.55 || short / tokens.length >= 0.75) && tokens.join('').length <= 28) {
+      return tokens.join('');
+    }
+    return t;
+  }
+
+  function textQuality(text, confidence) {
+    const t = normalizeSpacedLetters(text);
     if (!t) return -999;
     const chars = [...t];
     const letters = chars.filter(ch => /[A-Za-zÇĞİÖŞÜçğıöşü0-9]/.test(ch)).length;
     const weird = chars.filter(ch => !/[A-Za-zÇĞİÖŞÜçğıöşü0-9 .&+\-/'’]/.test(ch)).length;
     const tokens = t.split(/\s+/).filter(Boolean);
-    const tiny = tokens.filter(x => x.length === 1).length;
     const alphaRatio = letters / Math.max(1, chars.length);
-    let score = Number(confidence || 0) + alphaRatio * 34 - weird * 7 - tiny * 2;
-    if (letters >= 4) score += 8;
-    if (tokens.length > 10) score -= (tokens.length - 10) * 3;
+    let score = Number(confidence || 0) + alphaRatio * 42 - weird * 10;
+    if (letters >= 5 && letters <= 24) score += 14;
+    if (tokens.length <= 4) score += 6;
+    if (tokens.length > 8) score -= (tokens.length - 8) * 5;
+    if (/^[A-ZÇĞİÖŞÜ0-9&+\- ]{4,28}$/.test(t.toLocaleUpperCase('tr-TR'))) score += 8;
     return score;
   }
 
@@ -85,49 +101,64 @@
       user_defined_dpi: '300'
     });
     const r = await w.recognize(canvas);
-    const text = cleanText(r?.data?.text || '');
+    const raw = cleanText(r?.data?.text || '');
+    const text = normalizeSpacedLetters(raw);
     const confidence = Number(r?.data?.confidence || 0);
-    return { text, confidence, score: textQuality(text, confidence) };
+    return { text, raw, confidence, score: textQuality(text, confidence) };
+  }
+
+  function normalizedKey(text) {
+    return (text || '').toLocaleUpperCase('tr-TR').replace(/[^A-ZÇĞİÖŞÜ0-9]/g, '');
   }
 
   async function run(photoData, onProgress) {
     const img = await loadImage(photoData);
     const w = await getWorker(onProgress);
 
-    // The green guide is 70% x 42% and centered. OCR is restricted to that region.
-    const rx = Math.round(img.width * 0.15);
-    const ry = Math.round(img.height * 0.29);
-    const rw = Math.round(img.width * 0.70);
-    const rh = Math.round(img.height * 0.42);
+    // V5: the visible green guide is a narrow text band, not the whole sign/photo.
+    // This deliberately excludes surrounding web page, facade, people and structural lines.
+    const rx = Math.round(img.width * 0.14);
+    const ry = Math.round(img.height * 0.39);
+    const rw = Math.round(img.width * 0.72);
+    const rh = Math.round(img.height * 0.22);
+    const roi = crop(img, rx, ry, rw, rh, 3);
 
-    const roi = crop(img, rx, ry, rw, rh, 2);
-    const stripeH = Math.round(roi.height * 0.46);
-    const stripes = [
-      roi,
-      crop(roi, 0, Math.round(roi.height * 0.07), roi.width, stripeH, 1),
-      crop(roi, 0, Math.round(roi.height * 0.27), roi.width, stripeH, 1),
-      crop(roi, 0, Math.round(roi.height * 0.47), roi.width, stripeH, 1)
+    // Build several narrow horizontal bands around the centre because most facade signs are single-line text.
+    const bands = [roi];
+    const bandDefs = [
+      [0.08, 0.84],
+      [0.18, 0.64],
+      [0.27, 0.48],
+      [0.34, 0.34]
     ];
+    for (const [yFrac, hFrac] of bandDefs) {
+      bands.push(crop(roi, 0, Math.round(roi.height*yFrac), roi.width, Math.round(roi.height*hFrac), 1.2));
+    }
 
     const variants = [];
-    for (const s of stripes) {
-      variants.push(s, enhance(s, false), enhance(s, true));
+    for (const b of bands) {
+      variants.push({canvas:b, psm:7});
+      variants.push({canvas:grayscaleContrast(b, 2.15, null, false), psm:7});
+      variants.push({canvas:grayscaleContrast(b, 2.25, 130, false), psm:7});
+      variants.push({canvas:grayscaleContrast(b, 2.25, 155, false), psm:7});
+      variants.push({canvas:grayscaleContrast(b, 2.15, 145, true), psm:7});
+      variants.push({canvas:b, psm:13});
     }
 
     const results = [];
     for (let i = 0; i < variants.length; i++) {
-      if (onProgress) onProgress(Math.round((i / variants.length) * 100), `varyant ${i+1}/${variants.length}`);
-      const psm = i < 3 ? 6 : 7;
-      results.push(await recognizeVariant(w, variants[i], psm, onProgress));
+      if (onProgress) onProgress(Math.round((i / variants.length) * 100), `yazı varyantı ${i+1}/${variants.length}`);
+      const r = await recognizeVariant(w, variants[i].canvas, variants[i].psm, onProgress);
+      if (normalizedKey(r.text).length >= 3) results.push(r);
     }
 
     results.sort((a, b) => b.score - a.score);
     const best = results[0] || { text:'', confidence:0, score:-999 };
 
-    // Consensus boost: repeated normalized candidates are preferred.
+    // Consensus: exact/near repeated candidates receive a strong preference.
     const groups = new Map();
     for (const r of results) {
-      const key = r.text.toLocaleUpperCase('tr-TR').replace(/[^A-ZÇĞİÖŞÜ0-9]/g, '');
+      const key = normalizedKey(r.text);
       if (key.length < 3) continue;
       const g = groups.get(key) || { count:0, best:r };
       g.count++;
@@ -135,20 +166,37 @@
       groups.set(key, g);
     }
     let chosen = best;
+    let chosenConsensus = 1;
     for (const g of groups.values()) {
-      if (g.count >= 2 && g.best.score + g.count * 5 > chosen.score) {
-        chosen = { ...g.best, score: g.best.score + g.count * 5, consensus: g.count };
+      const boosted = g.best.score + Math.min(30, g.count * 7);
+      if (g.count >= 2 && boosted > chosen.score) {
+        chosen = { ...g.best, score: boosted };
+        chosenConsensus = g.count;
       }
     }
 
+    // Confidence shown to the user is still OCR confidence; consensus only helps selection.
     return {
       text: chosen.text,
       confidence: Math.max(0, Math.min(100, Math.round(chosen.confidence || 0))),
-      consensus: chosen.consensus || 1,
-      candidates: results.slice(0, 5),
-      roiDataUrl: roi.toDataURL('image/jpeg', 0.92)
+      consensus: chosenConsensus,
+      candidates: results.slice(0, 6),
+      roiDataUrl: roi.toDataURL('image/jpeg', 0.94),
+      version: '5.0'
     };
   }
 
-  window.TabelaOCR = { run };
+  // Keep the visual guide exactly aligned with the V5 OCR crop.
+  window.addEventListener('DOMContentLoaded', () => {
+    const guide = document.querySelector('.cross');
+    if (guide) {
+      guide.style.width = '72%';
+      guide.style.height = '22%';
+      guide.style.borderWidth = '3px';
+    }
+    const label = document.querySelector('.guide');
+    if (label) label.textContent = 'YAZIYI YEŞİL ŞERİDİN İÇİNE AL';
+  });
+
+  window.TabelaOCR = { run, version:'5.0' };
 })();
