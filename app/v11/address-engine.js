@@ -1,0 +1,6 @@
+(() => {
+  let last=null,lastAt=0;
+  async function reverse(gps){if(!gps||!Number.isFinite(gps.lat)||!Number.isFinite(gps.lng))return null;const now=Date.now();if(last&&now-lastAt<30000&&Math.abs(last.lat-gps.lat)<.0002&&Math.abs(last.lng-gps.lng)<.0002)return last;const u=`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(gps.lat)}&lon=${encodeURIComponent(gps.lng)}&zoom=18&addressdetails=1&accept-language=tr`;
+    try{const r=await fetch(u,{headers:{'accept':'application/json'}});if(!r.ok)throw new Error(String(r.status));const j=await r.json(),a=j.address||{};last={lat:gps.lat,lng:gps.lng,displayName:j.display_name||'',road:a.road||a.pedestrian||a.footway||'',neighbourhood:a.neighbourhood||a.suburb||a.quarter||'',district:a.city_district||a.district||'',city:a.city||a.town||a.municipality||a.province||'',postcode:a.postcode||'',country:a.country||'',source:'OpenStreetMap Nominatim'};lastAt=now;return last}catch(e){return{error:e.message,lat:gps.lat,lng:gps.lng,source:'reverse-geocode-unavailable'}}}
+  window.TabelaAddress={reverse,version:'11.0'};
+})();
