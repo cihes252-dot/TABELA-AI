@@ -1,0 +1,8 @@
+(() => {
+  const norm=s=>(s||'').toLocaleUpperCase('tr-TR').replace(/[^A-ZÇĞİÖŞÜ0-9]/g,'');
+  function lev(a,b){a=a||'';b=b||'';const d=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let p=d[0];d[0]=i;for(let j=1;j<=b.length;j++){const t=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t}}return d[b.length]}
+  const textSim=(a,b)=>{a=norm(a);b=norm(b);if(!a||!b)return 0;return 1-lev(a,b)/Math.max(a.length,b.length)};
+  function meters(a,b){if(!a||!b||!Number.isFinite(a.lat)||!Number.isFinite(b.lat))return Infinity;const R=6371000,p=Math.PI/180,dlat=(b.lat-a.lat)*p,dlon=(b.lng-a.lng)*p,z=Math.sin(dlat/2)**2+Math.cos(a.lat*p)*Math.cos(b.lat*p)*Math.sin(dlon/2)**2;return 2*R*Math.atan2(Math.sqrt(z),Math.sqrt(1-z))}
+  function analyze(c,records){let best=null;for(const r of records||[]){const m=meters(c.gps,r.gps),t=textSim(c.ocr,r.ocr),v=c.visualHash&&r.visualHash?window.TabelaFingerprint.similarity(c.visualHash,r.visualHash):0,shape=c.shapeType&&r.shapeType&&c.shapeType===r.shapeType?1:0,type=c.signType&&r.signType===c.signType?1:0;let score=0;if(m<=5)score+=34;else if(m<=12)score+=25;else if(m<=30)score+=12;if(t>=.94)score+=28;else if(t>=.80)score+=20;else if(t>=.62)score+=10;if(v>=.94)score+=34;else if(v>=.86)score+=27;else if(v>=.76)score+=16;if(shape)score+=3;if(type)score+=2;score=Math.min(100,score);const strongVisual=v>=.91&&m<=35,strongText=t>=.92&&m<=15,duplicate=score>=68||strongVisual||strongText;const x={record:r,score,meters:m,textSimilarity:t,visualSimilarity:v,duplicate};if(!best||x.score>best.score)best=x}return best||{duplicate:false,score:0,meters:Infinity,textSimilarity:0,visualSimilarity:0}}
+  window.TabelaDuplicate={analyze,textSim,meters,version:'11.0'};
+})();
