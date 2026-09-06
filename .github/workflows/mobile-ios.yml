@@ -25,7 +25,7 @@ jobs:
           -configuration Debug
           -sdk iphonesimulator
           -destination 'generic/platform=iOS Simulator'
-          -derivedDataPath build/DerivedData
+          -derivedDataPath build/SimulatorDerivedData
           CODE_SIGNING_ALLOWED=NO
           build
 
@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/mobile/ios
-          APP_PATH="$(find build/DerivedData/Build/Products/Debug-iphonesimulator -maxdepth 1 -name 'TabelaAI.app' -print -quit)"
+          APP_PATH="$(find build/SimulatorDerivedData/Build/Products/Debug-iphonesimulator -maxdepth 1 -name 'TabelaAI.app' -print -quit)"
           test -n "$APP_PATH"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" dist/mobile/ios/TabelaAI-ios-simulator.zip
           shasum -a 256 dist/mobile/ios/TabelaAI-ios-simulator.zip > dist/mobile/ios/TabelaAI-ios-simulator.sha256
@@ -46,5 +46,37 @@ jobs:
           path: |
             dist/mobile/ios/TabelaAI-ios-simulator.zip
             dist/mobile/ios/TabelaAI-ios-simulator.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Build unsigned iPhone device app
+        run: >-
+          xcodebuild
+          -project native/ios/TabelaAIMobile/TabelaAI.xcodeproj
+          -scheme TabelaAI
+          -configuration Debug
+          -sdk iphoneos
+          -destination 'generic/platform=iOS'
+          -derivedDataPath build/DeviceDerivedData
+          CODE_SIGNING_ALLOWED=NO
+          build
+
+      - name: Package unsigned iPhone device app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/mobile/ios
+          APP_PATH="$(find build/DeviceDerivedData/Build/Products/Debug-iphoneos -maxdepth 1 -name 'TabelaAI.app' -print -quit)"
+          test -n "$APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" dist/mobile/ios/TabelaAI-ios-device-unsigned.zip
+          shasum -a 256 dist/mobile/ios/TabelaAI-ios-device-unsigned.zip > dist/mobile/ios/TabelaAI-ios-device-unsigned.sha256
+
+      - name: Upload unsigned iPhone device artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tabela-ai-ios-device-unsigned
+          path: |
+            dist/mobile/ios/TabelaAI-ios-device-unsigned.zip
+            dist/mobile/ios/TabelaAI-ios-device-unsigned.sha256
           if-no-files-found: error
           retention-days: 30
