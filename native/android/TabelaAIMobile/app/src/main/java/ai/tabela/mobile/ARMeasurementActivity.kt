@@ -184,7 +184,7 @@ private class ARRenderer(
             textureAttached = true
         }
         if (!geometryApplied && width > 0 && height > 0) {
-            val rotation = activity.display?.rotation ?: Surface.ROTATION_0
+            val rotation = activity.window.decorView.display?.rotation ?: Surface.ROTATION_0
             s.setDisplayGeometry(rotation, width, height)
             geometryApplied = true
         }
