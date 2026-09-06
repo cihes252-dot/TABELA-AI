@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#091321">
+<title>TABELA AI V9.1</title>
+<style>html,body{margin:0;background:#08111e;color:#eef5ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif}.loading{min-height:100vh;display:grid;place-items:center;text-align:center;padding:24px}.box{max-width:520px}.brand{font-size:32px;font-weight:900}.ver{color:#59dba8}.muted{color:#93a6bf;margin-top:10px}</style>
+</head>
+<body>
+<div class="loading" id="loading"><div class="box"><div class="brand">TABELA AI <span class="ver">V9.1</span></div><div class="muted">Güncel OCR + şekil motoru yükleniyor…</div></div></div>
+<script>
+(async()=>{
+  try{
+    const u='../v8/index.html?v=9.1.1-'+Date.now();
+    let html=await fetch(u,{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Uygulama dosyası alınamadı');return r.text()});
+    html=html.replace('<head>','<head><base href="../v8/">');
+    html=html.replaceAll('TABELA AI V8','TABELA AI V9.1');
+    html=html.replaceAll('>V8<','>V9.1<');
+    html=html.replaceAll('V8 motorları','V9.1 motorları');
+    html=html.replaceAll('tabela_ai_v8.csv','tabela_ai_v9_1.csv');
+    document.open();document.write(html);document.close();
+  }catch(e){
+    document.getElementById('loading').innerHTML='<div class="box"><div class="brand">TABELA AI <span class="ver">V9.1</span></div><div class="muted">Yükleme hatası: '+String(e.message||e)+'</div><p><a style="color:#59dba8" href="../v8/?v=9.1.1">Doğrudan uygulamayı aç</a></p></div>';
+  }
+})();
+</script>
+</body></html>
