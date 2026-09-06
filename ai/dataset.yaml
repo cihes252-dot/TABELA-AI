@@ -1,0 +1,17 @@
+path: datasets/tabela
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: facade_sign
+  1: shop_sign
+  2: billboard
+  3: totem
+  4: projecting_sign
+  5: roof_sign
+  6: led_display
+  7: direction_sign
+  8: bus_stop_ad
+  9: vinyl_banner
+  10: vehicle_ad
+# Shape/material/lettering are stored as metadata and can later be separate classifiers.
