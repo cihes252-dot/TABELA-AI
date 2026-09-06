@@ -13,8 +13,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Show Xcode version
         run: xcodebuild -version
+
       - name: Build iOS Simulator app
         run: >-
           xcodebuild
@@ -23,5 +25,26 @@ jobs:
           -configuration Debug
           -sdk iphonesimulator
           -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath build/DerivedData
           CODE_SIGNING_ALLOWED=NO
           build
+
+      - name: Package iOS Simulator app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/mobile/ios
+          APP_PATH="$(find build/DerivedData/Build/Products/Debug-iphonesimulator -maxdepth 1 -name 'TabelaAI.app' -print -quit)"
+          test -n "$APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" dist/mobile/ios/TabelaAI-ios-simulator.zip
+          shasum -a 256 dist/mobile/ios/TabelaAI-ios-simulator.zip > dist/mobile/ios/TabelaAI-ios-simulator.sha256
+
+      - name: Upload iOS Simulator artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tabela-ai-ios-simulator
+          path: |
+            dist/mobile/ios/TabelaAI-ios-simulator.zip
+            dist/mobile/ios/TabelaAI-ios-simulator.sha256
+          if-no-files-found: error
+          retention-days: 30
