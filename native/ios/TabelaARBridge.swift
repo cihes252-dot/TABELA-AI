@@ -5,12 +5,17 @@ import simd
 
 /// Host controller contract for TABELA AI V10.
 /// The web app requests a real measurement through `window.webkit.messageHandlers.tabelaMetric`.
-/// Native UI must then collect four ARKit raycast points in order:
+/// Native UI collects four real AR points in order:
 /// top-left, top-right, bottom-left, bottom-right.
+///
+/// On LiDAR-capable devices every accepted corner must also pass Scene Depth confidence.
+/// On non-LiDAR devices (for example iPhone 11) the same bridge falls back to ARKit raycast.
 final class TabelaARBridge: NSObject, WKScriptMessageHandler {
     weak var webView: WKWebView?
     weak var arView: ARSCNView?
     private var points: [SIMD3<Float>] = []
+    private var depthConfidences: [UInt8] = []
+    private var depthMeters: [Float] = []
 
     init(webView: WKWebView, arView: ARSCNView) {
         self.webView = webView
@@ -19,49 +24,135 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
         webView.configuration.userContentController.add(self, name: "tabelaMetric")
     }
 
-    deinit { webView?.configuration.userContentController.removeScriptMessageHandler(forName: "tabelaMetric") }
+    deinit {
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "tabelaMetric")
+    }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.name == "tabelaMetric" else { return }
-        points.removeAll()
-        // Host app should now present the AR measurement overlay and call addPoint(screenPoint:)
-        NotificationCenter.default.post(name: .tabelaMeasurementRequested, object: self, userInfo: ["payload": message.body])
+        reset()
+        NotificationCenter.default.post(
+            name: .tabelaMeasurementRequested,
+            object: self,
+            userInfo: ["payload": message.body]
+        )
     }
 
-    /// Call after each user/vision-selected corner. Returns true when 4 verified AR points were collected.
+    private var interfaceOrientation: UIInterfaceOrientation {
+        arView?.window?.windowScene?.interfaceOrientation ?? .portrait
+    }
+
+    /// Call after each user/vision-selected corner.
+    /// Returns false when tracking, LiDAR depth quality, or AR raycast is not reliable enough.
     @discardableResult
     func addPoint(screenPoint: CGPoint) -> Bool {
         guard let view = arView,
               let frame = view.session.currentFrame,
-              case .normal = frame.camera.trackingState,
-              let query = view.raycastQuery(from: screenPoint, allowing: .estimatedPlane, alignment: .any),
-              let hit = view.session.raycast(query).first else { return false }
+              case .normal = frame.camera.trackingState else { return false }
+
+        let caps = TabelaLiDAREngine.capabilities()
+        if caps.lidarAvailable {
+            let quality = TabelaLiDAREngine.depthQualityPasses(
+                at: screenPoint,
+                in: view,
+                orientation: interfaceOrientation
+            )
+            guard quality.passes, let sample = quality.sample else { return false }
+            depthConfidences.append(sample.confidence)
+            depthMeters.append(sample.meters)
+        }
+
+        // Prefer an established plane; if unavailable, allow ARKit's estimated plane.
+        let existing = view.raycastQuery(
+            from: screenPoint,
+            allowing: .existingPlaneGeometry,
+            alignment: .any
+        ).flatMap { view.session.raycast($0).first }
+
+        let estimated = view.raycastQuery(
+            from: screenPoint,
+            allowing: .estimatedPlane,
+            alignment: .any
+        ).flatMap { view.session.raycast($0).first }
+
+        guard let hit = existing ?? estimated else {
+            if caps.lidarAvailable {
+                _ = depthConfidences.popLast()
+                _ = depthMeters.popLast()
+            }
+            return false
+        }
+
         let t = hit.worldTransform.columns.3
         points.append(SIMD3<Float>(t.x, t.y, t.z))
         if points.count == 4 { finishMeasurement() }
         return true
     }
 
-    func cancel() { points.removeAll() }
+    func cancel() { reset() }
+
+    private func reset() {
+        points.removeAll()
+        depthConfidences.removeAll()
+        depthMeters.removeAll()
+    }
 
     private func finishMeasurement() {
         guard points.count == 4, let frame = arView?.session.currentFrame else { return }
+        let caps = TabelaLiDAREngine.capabilities()
+
+        // A LiDAR-capable measurement is only accepted when all 4 corners passed depth quality.
+        if caps.lidarAvailable && depthConfidences.count != 4 {
+            reset()
+            return
+        }
+
         let c = frame.camera.transform.columns.3
         let camera = SIMD3<Float>(c.x, c.y, c.z)
-        let r = TabelaMetricEngine.measure(topLeft: points[0], topRight: points[1], bottomLeft: points[2], bottomRight: points[3], camera: camera)
+
+        let qualityScore: Double? = caps.lidarAvailable
+            ? (depthConfidences.map { Double($0) / 2.0 }.reduce(0, +) / 4.0) * 100.0
+            : nil
+
+        let source = caps.lidarAvailable ? "LiDAR-ARKit-SceneDepth" : "ARKit-Raycast"
+        let result = TabelaMetricEngine.measure(
+            topLeft: points[0],
+            topRight: points[1],
+            bottomLeft: points[2],
+            bottomRight: points[3],
+            camera: camera,
+            source: source,
+            qualityScore: qualityScore,
+            lidar: caps.lidarAvailable
+        )
+
+        guard result.verified else {
+            reset()
+            return
+        }
+
         let payload: [String: Any] = [
-            "verified": r.verified,
-            "source": "ARKit-3D-iPhone",
-            "widthM": r.width_m,
-            "heightM": r.height_m,
-            "areaM2": r.area_m2,
-            "distanceM": r.distance_m as Any
+            "verified": true,
+            "source": result.source,
+            "lidar": result.lidar,
+            "qualityScore": result.quality_score as Any,
+            "widthM": result.width_m,
+            "heightM": result.height_m,
+            "areaM2": result.area_m2,
+            "distanceM": result.distance_m as Any,
+            "depthSamplesM": depthMeters.map { Double($0) },
+            "depthConfidence": depthConfidences.map { Int($0) }
         ]
+
         guard JSONSerialization.isValidJSONObject(payload),
               let data = try? JSONSerialization.data(withJSONObject: payload),
-              let json = String(data: data, encoding: .utf8) else { return }
+              let json = String(data: data, encoding: .utf8) else {
+            reset()
+            return
+        }
+
         webView?.evaluateJavaScript("window.TabelaMetric.submitVerified(\(json))")
-        points.removeAll()
+        reset()
     }
 }
 
