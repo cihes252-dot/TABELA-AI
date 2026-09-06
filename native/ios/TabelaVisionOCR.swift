@@ -17,10 +17,12 @@ final class TabelaVisionOCR {
             if let err = err { completion(.failure(err)); return }
             let observations = (req.results as? [VNRecognizedTextObservation]) ?? []
             var out: [TabelaOCRCandidate] = []
-            for o in observations {
-                for c in o.topCandidates(3) {
-                    let t = c.string.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !t.isEmpty { out.append(TabelaOCRCandidate(text: t, confidence: c.confidence)) }
+            for observation in observations {
+                for candidate in observation.topCandidates(3) {
+                    let text = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !text.isEmpty {
+                        out.append(TabelaOCRCandidate(text: text, confidence: candidate.confidence))
+                    }
                 }
             }
             completion(.success(out.sorted { $0.confidence > $1.confidence }))
@@ -29,10 +31,17 @@ final class TabelaVisionOCR {
         request.usesLanguageCorrection = true
         request.recognitionLanguages = ["tr-TR", "en-US"]
         request.minimumTextHeight = 0.015
-        request.revision = VNRecognizeTextRequestRevision3
+        if #available(iOS 16.0, *) {
+            request.revision = VNRecognizeTextRequestRevision3
+        } else {
+            request.revision = VNRecognizeTextRequestRevision2
+        }
         DispatchQueue.global(qos: .userInitiated).async {
-            do { try VNImageRequestHandler(cgImage: cg, options: [:]).perform([request]) }
-            catch { completion(.failure(error)) }
+            do {
+                try VNImageRequestHandler(cgImage: cg, options: [:]).perform([request])
+            } catch {
+                completion(.failure(error))
+            }
         }
     }
 }
