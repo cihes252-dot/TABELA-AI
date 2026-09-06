@@ -1,0 +1,4 @@
+(() => {
+  function evaluate(record,rules={}){const flags=[];if(rules.requirePermitNumber&&!record.permitNumber)flags.push({code:'permit_missing',level:'review',message:'İzin numarası girilmemiş'});if(Number.isFinite(Number(rules.maxAreaM2))&&Number(record.areaM2)>Number(rules.maxAreaM2))flags.push({code:'area_limit',level:'review',message:`Alan tanımlı eşik değerin üzerinde (${record.areaM2} m²)`});if(rules.requireVerifiedMeasurement&&record.measurementVerified!==true)flags.push({code:'measurement_unverified',level:'review',message:'Ölçüm doğrulanmamış'});if(Number(record.gps?.accuracy)>Number(rules.maxGpsAccuracyM||30))flags.push({code:'gps_low_accuracy',level:'review',message:'GPS doğruluğu yetersiz'});return{status:flags.length?'review':'clear',flags,ruleSet:rules.name||'custom',note:'Bu motor hukuki karar vermez; yalnız yapılandırılmış saha kurallarına göre kontrol listesi üretir.',version:'11.0'}}
+  window.TabelaCompliance={evaluate,version:'11.0'};
+})();
