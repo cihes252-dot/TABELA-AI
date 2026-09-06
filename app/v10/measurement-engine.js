@@ -1,0 +1,8 @@
+(() => {
+  function area(shape,p){const w=Number(p.widthM),h=Number(p.heightM),d=Number(p.diameterM);switch(shape){case'circle':{const dia=d>0?d:(w>0&&h>0?(w+h)/2:NaN);return dia>0?Math.PI*(dia/2)**2:null}case'oval':return w>0&&h>0?Math.PI*(w/2)*(h/2):null;case'triangle':return w>0&&h>0?.5*w*h:null;case'polygon':case'freeform':return Number.isFinite(Number(p.polygonAreaM2))?Number(p.polygonAreaM2):null;default:return w>0&&h>0?w*h:null}}
+  function normalize(p){if(!p||p.verified!==true)throw new Error('Ölçüm yalnız doğrulanmış AR/Depth verisinden kabul edilir.');const shape=p.shapeType||'horizontal-rectangle',a=area(shape,p);return{...p,shapeType:shape,areaM2:a,accepted:true,acceptedAt:new Date().toISOString()}}
+  function submitVerified(p){const r=normalize(p);window.dispatchEvent(new CustomEvent('tabela:measurement',{detail:r}));return r}
+  function capability(){if(window.webkit?.messageHandlers?.tabelaMetric)return{available:true,platform:'ios'};if(window.TabelaAndroidMetric?.requestMeasurement)return{available:true,platform:'android'};return{available:false,platform:'web'}}
+  function request(payload={}){const c=capability();if(!c.available){window.dispatchEvent(new CustomEvent('tabela:measurement-unavailable',{detail:{reason:'native_bridge_required'}}));return false}if(c.platform==='ios'){window.webkit.messageHandlers.tabelaMetric.postMessage(payload);return true}window.TabelaAndroidMetric.requestMeasurement(JSON.stringify(payload));return true}
+  window.TabelaMetric={area,normalize,submitVerified,request,capability,version:'10.0'};
+})();
