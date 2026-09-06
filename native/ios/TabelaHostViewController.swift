@@ -1,8 +1,13 @@
 import UIKit
 import WebKit
 import ARKit
+import AVFoundation
 
-final class TabelaHostViewController: UIViewController {
+/// Native iOS host for TABELA AI V11.
+/// - Loads the V11 field UI in WKWebView.
+/// - Grants the web UI access to the device camera after the iOS permission gate.
+/// - Switches to ARKit/LiDAR mode only when a real measurement is requested.
+final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigationDelegate {
     private let arView = ARSCNView(frame: .zero)
     private var webView: WKWebView!
     private var bridge: TabelaARBridge!
@@ -16,11 +21,15 @@ final class TabelaHostViewController: UIViewController {
         let caps = TabelaLiDAREngine.capabilities()
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+        config.websiteDataStore = .default()
 
-        // Make native sensing capability visible to the web UI from document start.
         let capabilityJS = """
         window.TabelaNativeCapabilities = {
           platform: 'ios',
+          app: true,
+          appVersion: '11.0.0',
+          nativeOCR: 'apple-vision',
           lidar: \(caps.lidarAvailable ? "true" : "false"),
           sceneDepth: \(caps.sceneDepth ? "true" : "false"),
           smoothedSceneDepth: \(caps.smoothedSceneDepth ? "true" : "false"),
@@ -34,6 +43,9 @@ final class TabelaHostViewController: UIViewController {
 
         webView = WKWebView(frame: .zero, configuration: config)
         webView.translatesAutoresizingMaskIntoConstraints = false
+        webView.uiDelegate = self
+        webView.navigationDelegate = self
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
         arView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(arView)
         view.addSubview(webView)
@@ -59,7 +71,7 @@ final class TabelaHostViewController: UIViewController {
 
         info.translatesAutoresizingMaskIntoConstraints = false
         info.textColor = .white
-        info.backgroundColor = UIColor.black.withAlphaComponent(0.68)
+        info.backgroundColor = UIColor.black.withAlphaComponent(0.72)
         info.textAlignment = .center
         info.numberOfLines = 3
         info.layer.cornerRadius = 12
@@ -75,13 +87,48 @@ final class TabelaHostViewController: UIViewController {
         arView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(arTapped(_:))))
         arView.isHidden = true
 
-        if let url = URL(string: "https://cihes252-dot.github.io/TABELA-AI/app/v10/?native=ios") {
-            webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
+        requestCameraThenLoad()
+    }
+
+    private func requestCameraThenLoad() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            loadV11()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] _ in
+                DispatchQueue.main.async { self?.loadV11() }
+            }
+        default:
+            loadV11()
+        }
+    }
+
+    private func loadV11() {
+        guard let url = URL(string: "https://cihes252-dot.github.io/TABELA-AI/app/v11/?native=ios&build=11.0.0") else { return }
+        webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30))
+    }
+
+    @available(iOS 15.0, *)
+    func webView(
+        _ webView: WKWebView,
+        requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+        initiatedByFrame frame: WKFrameInfo,
+        type: WKMediaCaptureType,
+        decisionHandler: @escaping (WKPermissionDecision) -> Void
+    ) {
+        if type == .camera || type == .cameraAndMicrophone {
+            decisionHandler(.grant)
+        } else {
+            decisionHandler(.deny)
         }
     }
 
     @objc private func beginMeasurement() {
         tapCount = 0
+        guard ARWorldTrackingConfiguration.isSupported else {
+            info.text = "Bu cihaz ARKit world tracking desteklemiyor. Ölçüm üretilmedi."
+            return
+        }
         let configuration = ARWorldTrackingConfiguration()
         TabelaLiDAREngine.configure(configuration)
         arView.session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
@@ -91,8 +138,8 @@ final class TabelaHostViewController: UIViewController {
     }
 
     @objc private func arTapped(_ g: UITapGestureRecognizer) {
-        let p = g.location(in: arView)
-        guard bridge.addPoint(screenPoint: p) else {
+        let point = g.location(in: arView)
+        guard bridge.addPoint(screenPoint: point) else {
             let caps = TabelaLiDAREngine.capabilities()
             info.text = caps.lidarAvailable
                 ? "LiDAR/AR kalite yetersiz. Kamerayı yavaşça hareket ettirin; yüzey ve derinlik netleşince tekrar dokunun."
