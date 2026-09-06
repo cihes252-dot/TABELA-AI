@@ -6,11 +6,13 @@ import AVFoundation
 /// Native iOS host for TABELA AI V11.
 /// - Loads the V11 field UI in WKWebView.
 /// - Grants the web UI access to the device camera after the iOS permission gate.
+/// - Exposes Apple Vision OCR to the web OCR ensemble.
 /// - Switches to ARKit/LiDAR mode only when a real measurement is requested.
 final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigationDelegate {
     private let arView = ARSCNView(frame: .zero)
     private var webView: WKWebView!
     private var bridge: TabelaARBridge!
+    private var ocrBridge: TabelaVisionOCRBridge!
     private let info = UILabel()
     private var tapCount = 0
 
@@ -62,6 +64,7 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
         ])
 
         bridge = TabelaARBridge(webView: webView, arView: arView)
+        ocrBridge = TabelaVisionOCRBridge(webView: webView)
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(beginMeasurement),
