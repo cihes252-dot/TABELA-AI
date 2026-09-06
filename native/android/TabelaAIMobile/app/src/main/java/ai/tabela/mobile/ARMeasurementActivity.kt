@@ -26,6 +26,7 @@ import com.google.ar.core.Point
 import com.google.ar.core.Pose
 import com.google.ar.core.Session
 import com.google.ar.core.TrackingState
+import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -33,6 +34,9 @@ import java.nio.FloatBuffer
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sqrt
 
 class ARMeasurementActivity : AppCompatActivity() {
@@ -88,8 +92,8 @@ class ARMeasurementActivity : AppCompatActivity() {
             onStatus = { message -> runOnUiThread { info.text = message } },
             onComplete = { result ->
                 runOnUiThread {
-                    val intent = Intent().putExtra(EXTRA_RESULT, result.toString())
-                    setResult(Activity.RESULT_OK, intent)
+                    val resultIntent = Intent().putExtra(EXTRA_RESULT, result.toString())
+                    setResult(Activity.RESULT_OK, resultIntent)
                     finish()
                 }
             }
@@ -155,6 +159,7 @@ private class ARRenderer(
     @Volatile var depthEnabled: Boolean = false
     @Volatile private var pendingTap: Pair<Float, Float>? = null
     private val points = mutableListOf<Pose>()
+    private val pointKinds = mutableListOf<String>()
     private val background = CameraBackgroundRenderer()
     private var textureAttached = false
     private var width = 0
@@ -206,8 +211,8 @@ private class ARRenderer(
             val trackable = result.trackable
             trackable.trackingState == TrackingState.TRACKING && when (trackable) {
                 is Plane -> trackable.isPoseInPolygon(result.hitPose)
-                is Point -> true
                 is DepthPoint -> true
+                is Point -> true
                 else -> false
             }
         }
@@ -215,14 +220,32 @@ private class ARRenderer(
             onStatus("Bu noktada güvenilir AR yüzeyi bulunamadı. Tekrar deneyin.")
             return
         }
+
+        val kind = when (hit.trackable) {
+            is DepthPoint -> "DepthPoint"
+            is Plane -> "Plane"
+            is Point -> "Point"
+            else -> "Unknown"
+        }
         points += hit.hitPose
+        pointKinds += kind
+
         val names = arrayOf("SAĞ ÜST", "SOL ALT", "SAĞ ALT")
         if (points.size < 4) {
             onStatus("${if (depthEnabled) "ARCore Depth" else "ARCore"} • ${names[points.size - 1]} köşeye dokunun (${points.size}/4)")
             return
         }
-        onComplete(buildResult(frame.camera.pose))
+
+        val result = buildResult(frame.camera.pose)
+        val verified = result.optBoolean("verified", false)
+        val q = result.optDouble("qualityScore", 0.0).toInt()
         points.clear()
+        pointKinds.clear()
+        if (verified) {
+            onComplete(result)
+        } else {
+            onStatus("Ölçüm kalite kapısından geçmedi (%$q). Kamerayı sabitleyin ve 4 köşeyi tekrar seçin.")
+        }
     }
 
     private fun distance(a: Pose, b: Pose): Double {
@@ -232,10 +255,47 @@ private class ARRenderer(
         return sqrt((dx * dx + dy * dy + dz * dz).toDouble())
     }
 
+    private fun v(p: Pose) = doubleArrayOf(p.tx().toDouble(), p.ty().toDouble(), p.tz().toDouble())
+    private fun sub(a: DoubleArray, b: DoubleArray) = doubleArrayOf(a[0]-b[0], a[1]-b[1], a[2]-b[2])
+    private fun cross(a: DoubleArray, b: DoubleArray) = doubleArrayOf(a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0])
+    private fun dot(a: DoubleArray, b: DoubleArray) = a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
+    private fun norm(a: DoubleArray) = sqrt(dot(a, a))
+
     private fun buildResult(camera: Pose): JSONObject {
         val tl = points[0]; val tr = points[1]; val bl = points[2]; val br = points[3]
-        val widthM = (distance(tl, tr) + distance(bl, br)) / 2.0
-        val heightM = (distance(tl, bl) + distance(tr, br)) / 2.0
+        val top = distance(tl, tr)
+        val bottom = distance(bl, br)
+        val left = distance(tl, bl)
+        val right = distance(tr, br)
+        val widthM = (top + bottom) / 2.0
+        val heightM = (left + right) / 2.0
+
+        val widthMismatch = abs(top - bottom) / max(widthM, 0.001)
+        val heightMismatch = abs(left - right) / max(heightM, 0.001)
+        val e1 = sub(v(tr), v(tl))
+        val e2 = sub(v(bl), v(tl))
+        val n = cross(e1, e2)
+        val nLen = norm(n)
+        val planeDistance = if (nLen > 0.000001) abs(dot(sub(v(br), v(tl)), n)) / nLen else Double.POSITIVE_INFINITY
+        val scale = max(sqrt(widthM * widthM + heightM * heightM), 0.10)
+        val planeRatio = planeDistance / scale
+        val edgeConsistent = widthMismatch <= 0.06 && heightMismatch <= 0.06
+        val coplanar = planeDistance.isFinite() && planeDistance <= max(0.02, scale * 0.025)
+
+        var geometryScore = 100.0
+        geometryScore -= min(45.0, (widthMismatch + heightMismatch) * 260.0)
+        geometryScore -= min(35.0, planeRatio * 900.0)
+        geometryScore = max(0.0, min(100.0, geometryScore))
+
+        val depthUsed = depthEnabled && pointKinds.any { it == "DepthPoint" }
+        val unstableFeaturePoint = pointKinds.any { it == "Point" || it == "Unknown" }
+        var qualityScore = if (depthUsed) geometryScore else min(85.0, geometryScore)
+        if (unstableFeaturePoint) qualityScore = min(72.0, qualityScore)
+
+        val validDimensions = widthM.isFinite() && heightM.isFinite() && widthM > 0.01 && heightM > 0.01 && widthM < 1000 && heightM < 1000
+        val threshold = if (depthUsed) 88.0 else 80.0
+        val verified = validDimensions && edgeConsistent && coplanar && !unstableFeaturePoint && qualityScore >= threshold
+
         val cx = (tl.tx() + tr.tx() + bl.tx() + br.tx()) / 4f
         val cy = (tl.ty() + tr.ty() + bl.ty() + br.ty()) / 4f
         val cz = (tl.tz() + tr.tz() + bl.tz() + br.tz()) / 4f
@@ -248,15 +308,20 @@ private class ARRenderer(
             "polygon", "freeform" -> null
             else -> widthM * heightM
         }
+        val source = if (depthUsed) "ARCore-Depth-3D" else "ARCore-Plane-Raycast-3D"
         val result = JSONObject()
-            .put("verified", widthM > 0.01 && heightM > 0.01)
-            .put("source", if (depthEnabled) "ARCore-Depth" else "ARCore-Raycast")
+            .put("verified", verified)
+            .put("source", source)
             .put("shapeType", shapeType)
             .put("lidar", false)
-            .put("arcoreDepth", depthEnabled)
+            .put("arcoreDepth", depthUsed)
+            .put("qualityScore", qualityScore)
             .put("widthM", widthM)
             .put("heightM", heightM)
             .put("distanceM", distance(camera, center))
+            .put("edgeMismatch", JSONObject().put("width", widthMismatch).put("height", heightMismatch))
+            .put("planeDeviationM", planeDistance)
+            .put("pointKinds", JSONArray(pointKinds))
         if (shapeType == "circle") result.put("diameterM", diameter)
         if (area != null) result.put("areaM2", area)
         return result
