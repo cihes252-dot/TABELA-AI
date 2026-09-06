@@ -3,13 +3,10 @@ import WebKit
 import ARKit
 import simd
 
-/// Host controller contract for TABELA AI V10.
+/// Native AR/LiDAR bridge for TABELA AI V11.
 /// The web app requests a real measurement through `window.webkit.messageHandlers.tabelaMetric`.
-/// Native UI collects four real AR points in order:
-/// top-left, top-right, bottom-left, bottom-right.
-///
-/// On LiDAR-capable devices every accepted corner must also pass Scene Depth confidence.
-/// On non-LiDAR devices (for example iPhone 11) the same bridge falls back to ARKit raycast.
+/// Native UI collects four real AR points in order: top-left, top-right, bottom-left, bottom-right.
+/// LiDAR devices additionally require Scene Depth confidence; non-LiDAR devices use ARKit raycast.
 final class TabelaARBridge: NSObject, WKScriptMessageHandler {
     weak var webView: WKWebView?
     weak var arView: ARSCNView?
@@ -48,8 +45,6 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
         arView?.window?.windowScene?.interfaceOrientation ?? .portrait
     }
 
-    /// Call after each user/vision-selected corner.
-    /// Returns false when tracking, LiDAR depth quality, or AR raycast is not reliable enough.
     @discardableResult
     func addPoint(screenPoint: CGPoint) -> Bool {
         guard let view = arView,
@@ -111,14 +106,13 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
             return
         }
 
-        let c = frame.camera.transform.columns.3
-        let camera = SIMD3<Float>(c.x, c.y, c.z)
-
+        let cameraColumn = frame.camera.transform.columns.3
+        let camera = SIMD3<Float>(cameraColumn.x, cameraColumn.y, cameraColumn.z)
         let qualityScore: Double? = caps.lidarAvailable
             ? (depthConfidences.map { Double($0) / 2.0 }.reduce(0, +) / 4.0) * 100.0
             : nil
-
         let source = caps.lidarAvailable ? "LiDAR-ARKit-SceneDepth" : "ARKit-Raycast"
+
         let result = TabelaMetricEngine.measure(
             topLeft: points[0],
             topRight: points[1],
@@ -135,19 +129,19 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
             return
         }
 
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "verified": true,
             "source": result.source,
             "shapeType": requestedShapeType,
             "lidar": result.lidar,
-            "qualityScore": result.quality_score as Any,
             "widthM": result.width_m,
             "heightM": result.height_m,
             "areaM2": result.area_m2,
-            "distanceM": result.distance_m as Any,
             "depthSamplesM": depthMeters.map { Double($0) },
             "depthConfidence": depthConfidences.map { Int($0) }
         ]
+        if let quality = result.quality_score { payload["qualityScore"] = quality }
+        if let distance = result.distance_m { payload["distanceM"] = distance }
 
         guard JSONSerialization.isValidJSONObject(payload),
               let data = try? JSONSerialization.data(withJSONObject: payload),
