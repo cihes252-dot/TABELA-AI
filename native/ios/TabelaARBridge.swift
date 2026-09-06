@@ -16,6 +16,7 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
     private var points: [SIMD3<Float>] = []
     private var depthConfidences: [UInt8] = []
     private var depthMeters: [Float] = []
+    private var requestedShapeType: String = "horizontal-rectangle"
 
     init(webView: WKWebView, arView: ARSCNView) {
         self.webView = webView
@@ -31,6 +32,11 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.name == "tabelaMetric" else { return }
         reset()
+        if let payload = message.body as? [String: Any],
+           let shapeType = payload["shapeType"] as? String,
+           !shapeType.isEmpty {
+            requestedShapeType = shapeType
+        }
         NotificationCenter.default.post(
             name: .tabelaMeasurementRequested,
             object: self,
@@ -62,7 +68,6 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
             depthMeters.append(sample.meters)
         }
 
-        // Prefer an established plane; if unavailable, allow ARKit's estimated plane.
         let existing = view.raycastQuery(
             from: screenPoint,
             allowing: .existingPlaneGeometry,
@@ -101,7 +106,6 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
         guard points.count == 4, let frame = arView?.session.currentFrame else { return }
         let caps = TabelaLiDAREngine.capabilities()
 
-        // A LiDAR-capable measurement is only accepted when all 4 corners passed depth quality.
         if caps.lidarAvailable && depthConfidences.count != 4 {
             reset()
             return
@@ -134,6 +138,7 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
         let payload: [String: Any] = [
             "verified": true,
             "source": result.source,
+            "shapeType": requestedShapeType,
             "lidar": result.lidar,
             "qualityScore": result.quality_score as Any,
             "widthM": result.width_m,
