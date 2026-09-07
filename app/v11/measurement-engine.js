@@ -36,6 +36,32 @@
     if(count!==expected)throw new Error('Şekil için beklenen 3D nokta sayısı doğrulanamadı');
   }
 
+  function validateIOSLiDARDiagnostics(p,source){
+    if(!(p.lidar===true&&p.depthAssisted===true&&/scene\s*depth|scenedepth/i.test(source)))return;
+    const count=Number(p.pointCount);
+    const errors=Array.isArray(p.depthRaycastErrorM)?p.depthRaycastErrorM.map(Number):[];
+    const depths=Array.isArray(p.depthSamplesM)?p.depthSamplesM.map(Number):[];
+    const confidence=Array.isArray(p.depthConfidence)?p.depthConfidence.map(Number):[];
+    const spreads=Array.isArray(p.depthSpreadM)?p.depthSpreadM.map(Number):[];
+    if(errors.length!==count||depths.length!==count||confidence.length!==count||spreads.length!==count){
+      throw new Error('LiDAR sensör/AR çapraz kontrol verisi eksik');
+    }
+    for(let i=0;i<count;i++){
+      const d=depths[i],e=errors[i],c=confidence[i],s=spreads[i];
+      if(!Number.isFinite(d)||d<=0.15||d>=25)throw new Error('LiDAR derinlik örneği geçersiz');
+      if(!Number.isFinite(c)||c<1)throw new Error('LiDAR güven seviyesi yetersiz');
+      const spreadLimit=Math.max(0.04,d*0.025);
+      if(!Number.isFinite(s)||s<0||s>spreadLimit+0.002)throw new Error('LiDAR yüzey derinliği kararsız');
+      const crossLimit=Math.max(0.05,Math.min(0.20,d*0.03));
+      if(!Number.isFinite(e)||e<0||e>crossLimit+0.002)throw new Error('LiDAR ve ARKit 3D yüzeyi uyuşmuyor');
+    }
+    const computedMax=Math.max(...errors);
+    const suppliedMax=Number(p.maxDepthRaycastErrorM);
+    if(!Number.isFinite(suppliedMax)||Math.abs(suppliedMax-computedMax)>0.005){
+      throw new Error('LiDAR çapraz kontrol özeti tutarsız');
+    }
+  }
+
   function normalize(p){
     if(!p||p.verified!==true)throw new Error('Doğrulanmamış ölçüm reddedildi');
     if(!Number.isFinite(Number(p.qualityScore)))throw new Error('Native ölçüm kalite skoru eksik');
@@ -46,6 +72,7 @@
     const reasons=Array.isArray(p.failureReasons)?p.failureReasons.filter(Boolean):[];
     if(reasons.length)throw new Error('Native ölçüm hata bayrağı içeriyor: '+reasons.join(', '));
     validatePointProtocol(shape,p);
+    validateIOSLiDARDiagnostics(p,source);
 
     const depthAssisted=p.lidar===true||p.depthAssisted===true||p.arcoreDepth===true;
     const threshold=depthAssisted?88:80;
@@ -149,5 +176,5 @@
   });
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refreshCapabilityUI,{once:true});else refreshCapabilityUI();
 
-  window.TabelaMetric={area,quality,normalize,submitVerified,capability,request,refreshCapabilityUI,version:'11.1-universal-native-strict'};
+  window.TabelaMetric={area,quality,normalize,submitVerified,capability,request,refreshCapabilityUI,version:'11.1-universal-native-strict-depth-crosscheck'};
 })();
