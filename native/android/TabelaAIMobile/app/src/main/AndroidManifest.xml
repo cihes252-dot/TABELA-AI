@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+    <!-- ARCore is intentionally optional so the field app can install on non-AR phones too.
+         Unsupported phones keep camera/OCR/GPS/records but native metric measurement is blocked. -->
     <uses-feature android:name="android.hardware.camera" android:required="true" />
     <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
 
@@ -17,7 +19,16 @@
         <meta-data android:name="com.google.ar.core" android:value="optional" />
 
         <activity
+            android:name=".UniversalARMeasurementActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:screenOrientation="fullSensor"
+            android:theme="@style/Theme.TabelaAI.Fullscreen" />
+
+        <!-- Kept for backward compatibility with old debug packages; new builds use UniversalARMeasurementActivity. -->
+        <activity
             android:name=".ARMeasurementActivity"
+            android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:screenOrientation="fullSensor"
             android:theme="@style/Theme.TabelaAI.Fullscreen" />
