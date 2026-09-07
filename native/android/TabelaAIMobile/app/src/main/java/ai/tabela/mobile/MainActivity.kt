@@ -24,7 +24,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val TRUSTED_HOST = "cihes252-dot.github.io"
         private const val TRUSTED_PATH_PREFIX = "/TABELA-AI/"
-        private const val APP_URL = "https://cihes252-dot.github.io/TABELA-AI/app/v11/?native=android&build=11.1.0"
+        private const val APP_URL = "https://cihes252-dot.github.io/TABELA-AI/app/v11_1/?native=android&build=11.1.0"
     }
 
     private lateinit var webView: WebView
@@ -79,6 +79,8 @@ class MainActivity : AppCompatActivity() {
             domStorageEnabled = true
             databaseEnabled = true
             mediaPlaybackRequiresUserGesture = false
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(false)
             setGeolocationEnabled(true)
             allowFileAccess = false
             allowContentAccess = false
@@ -95,14 +97,16 @@ class MainActivity : AppCompatActivity() {
                 if (request.isForMainFrame && (url.scheme == "http" || url.scheme == "https")) {
                     runCatching { startActivity(Intent(Intent.ACTION_VIEW, url)) }
                 }
-                return request.isForMainFrame
+                return true
             }
 
             @Deprecated("Deprecated in Java")
             override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
                 val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return true
                 if (isTrustedAppUrl(uri)) return false
-                runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+                if (uri.scheme == "http" || uri.scheme == "https") {
+                    runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+                }
                 return true
             }
 
@@ -120,7 +124,8 @@ class MainActivity : AppCompatActivity() {
                         Manifest.permission.CAMERA
                     ) == PackageManager.PERMISSION_GRANTED
                     val wantsVideo = request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
-                    if (cameraAllowed && wantsVideo) {
+                    val trustedOrigin = request.origin.scheme == "https" && request.origin.host == TRUSTED_HOST
+                    if (cameraAllowed && wantsVideo && trustedOrigin) {
                         request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
                     } else {
                         request.deny()
@@ -132,6 +137,8 @@ class MainActivity : AppCompatActivity() {
                 origin: String,
                 callback: GeolocationPermissions.Callback
             ) {
+                val uri = runCatching { Uri.parse(origin) }.getOrNull()
+                val trustedOrigin = uri?.scheme == "https" && uri.host == TRUSTED_HOST
                 val fine = ContextCompat.checkSelfPermission(
                     this@MainActivity,
                     Manifest.permission.ACCESS_FINE_LOCATION
@@ -140,7 +147,7 @@ class MainActivity : AppCompatActivity() {
                     this@MainActivity,
                     Manifest.permission.ACCESS_COARSE_LOCATION
                 ) == PackageManager.PERMISSION_GRANTED
-                callback.invoke(origin, fine || coarse, false)
+                callback.invoke(origin, trustedOrigin && (fine || coarse), false)
             }
         }
 
