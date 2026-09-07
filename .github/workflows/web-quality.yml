@@ -1,0 +1,54 @@
+name: Test TABELA AI Web Quality
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'index.html'
+      - 'app/v11/**'
+      - 'app/v11_1/**'
+      - 'tests/web-measurement-smoke.mjs'
+      - '.github/workflows/web-quality.yml'
+
+jobs:
+  web-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app/v11/measurement-engine.js
+          node --check app/v11/quality-engine.js
+          node --check app/v11/multiframe-engine.js
+          node --check app/v11/segmentation-engine.js
+          node --check app/v11/perspective-engine.js
+          node --check app/v11/ocr-ensemble.js
+          node --check app/v11/fingerprint-engine.js
+          node --check app/v11/duplicate-engine.js
+          node --check app/v11/orientation-engine.js
+          node --check app/v11/address-engine.js
+          node --check app/v11/material-engine.js
+          node --check app/v11/storage-engine.js
+          node --check app/v11_1/service-worker.js
+          node --check app/v10/shape-engine.js
+          node --check app/v10/ocr-engine.js
+
+      - name: Run measurement trust smoke tests
+        run: node tests/web-measurement-smoke.mjs
+
+      - name: Verify V11.1 entry contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'TABELA AI V11.1' app/v11_1/index.html
+          grep -q 'UNIVERSAL FIELD 11.1.0' app/v11_1/index.html
+          grep -q "serviceWorker.register('./service-worker.js?b=11.1.0'" app/v11_1/index.html
+          grep -q "app/v11_1" index.html
+          grep -q '11.1.0' app/v11_1/manifest.webmanifest
