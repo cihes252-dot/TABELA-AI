@@ -9,6 +9,8 @@ import simd
 /// depth reprojection for the metric 3D point and cross-check it against an ARKit raycast. Non-LiDAR
 /// devices must hit a detected ARKit plane. Estimated-only raycasts are never accepted without depth.
 final class TabelaARBridge: NSObject, WKScriptMessageHandler {
+    private static let trustedHost = "cihes252-dot.github.io"
+
     weak var webView: WKWebView?
     weak var arView: ARSCNView?
 
@@ -32,7 +34,13 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.name == "tabelaMetric" else { return }
+        let origin = message.frameInfo.securityOrigin
+        let trustedRemote = origin.protocol.lowercased() == "https" && origin.host.lowercased() == Self.trustedHost
+        let trustedBundle = origin.protocol.lowercased() == "file" && origin.host.isEmpty
+        guard message.name == "tabelaMetric",
+              message.frameInfo.isMainFrame,
+              trustedRemote || trustedBundle else { return }
+
         reset()
         if let payload = message.body as? [String: Any],
            let shapeType = payload["shapeType"] as? String,
