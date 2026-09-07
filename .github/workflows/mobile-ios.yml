@@ -6,13 +6,14 @@ on:
     paths:
       - 'native/ios/**'
       - 'app/v11/**'
+      - 'app/v11_1/**'
       - '.github/workflows/mobile-ios.yml'
 
 jobs:
   ios:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Show Xcode version
         run: xcodebuild -version
