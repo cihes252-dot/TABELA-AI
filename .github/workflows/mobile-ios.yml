@@ -57,7 +57,8 @@ jobs:
           APP_PATH="$(find build/SimulatorDerivedData/Build/Products/Debug-iphonesimulator -maxdepth 1 -name 'TabelaAI.app' -print -quit)"
           test -n "$APP_PATH"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" dist/mobile/ios/TabelaAI-ios-simulator-11.1.0.zip
-          shasum -a 256 dist/mobile/ios/TabelaAI-ios-simulator-11.1.0.zip > dist/mobile/ios/TabelaAI-ios-simulator-11.1.0.sha256
+          (cd dist/mobile/ios && shasum -a 256 TabelaAI-ios-simulator-11.1.0.zip > TabelaAI-ios-simulator-11.1.0.sha256)
+          (cd dist/mobile/ios && shasum -a 256 -c TabelaAI-ios-simulator-11.1.0.sha256)
 
       - name: Upload iOS Simulator artifact
         uses: actions/upload-artifact@v4
@@ -89,7 +90,8 @@ jobs:
           APP_PATH="$(find build/DeviceDerivedData/Build/Products/Debug-iphoneos -maxdepth 1 -name 'TabelaAI.app' -print -quit)"
           test -n "$APP_PATH"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" dist/mobile/ios/TabelaAI-ios-device-unsigned-11.1.0.zip
-          shasum -a 256 dist/mobile/ios/TabelaAI-ios-device-unsigned-11.1.0.zip > dist/mobile/ios/TabelaAI-ios-device-unsigned-11.1.0.sha256
+          (cd dist/mobile/ios && shasum -a 256 TabelaAI-ios-device-unsigned-11.1.0.zip > TabelaAI-ios-device-unsigned-11.1.0.sha256)
+          (cd dist/mobile/ios && shasum -a 256 -c TabelaAI-ios-device-unsigned-11.1.0.sha256)
 
       - name: Upload unsigned iPhone device artifact
         uses: actions/upload-artifact@v4
