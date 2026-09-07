@@ -8,28 +8,33 @@
   <meta http-equiv="pragma" content="no-cache">
   <meta http-equiv="expires" content="0">
   <title>TABELA AI V11.1</title>
-  <link rel="manifest" href="./manifest.webmanifest?b=11.1.0">
+  <link rel="manifest" href="./manifest.webmanifest?b=11.1.1">
 </head>
 <body style="margin:0;background:#08111e;color:#eef5ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif">
   <main style="max-width:760px;margin:auto;padding:32px 18px">
     <h1 style="margin:0 0 8px">TABELA AI V11.1</h1>
-    <p style="color:#93a6bf">UNIVERSAL FIELD 11.1.0 yükleniyor…</p>
-    <p id="fallback" style="display:none;color:#ffdc72">Ana uygulama yüklenemedi. <a style="color:#59dba8" href="../v11/?build=11.1.0">V11 çekirdeğini aç</a></p>
+    <p style="color:#93a6bf">UNIVERSAL FIELD 11.1.1 yükleniyor…</p>
+    <p id="fallback" style="display:none;color:#ffdc72">Ana uygulama yüklenemedi. <a style="color:#59dba8" href="../v11/?build=11.1.1">V11 çekirdeğini aç</a></p>
   </main>
   <script>
   (async()=>{
+    const params=new URLSearchParams(location.search);
+    const nativeMode=params.has('native')||params.get('bundle')==='1';
     const stamp=Date.now();
-    if('serviceWorker' in navigator){
+    window.TabelaNativeBundle=nativeMode;
+
+    if(!nativeMode&&'serviceWorker' in navigator){
       try{
-        const registration=await navigator.serviceWorker.register('./service-worker.js?b=11.1.0',{scope:'./',updateViaCache:'none'});
+        const registration=await navigator.serviceWorker.register('./service-worker.js?b=11.1.1',{scope:'./',updateViaCache:'none'});
         registration.update().catch(()=>{});
       }catch(error){
         console.warn('V11.1 service worker kullanılamadı',error);
       }
     }
+
     async function getCore(){
       try{
-        const r=await fetch('../v11/index.html?core=11.1.0&t='+stamp,{cache:'no-store'});
+        const r=await fetch('../v11/index.html?core=11.1.1&t='+stamp,{cache:'no-store'});
         if(r.ok)return await r.text();
       }catch(e){}
       try{
@@ -38,15 +43,22 @@
       }catch(e){}
       throw new Error('core_load_failed');
     }
+
     try{
       let html=await getCore();
-      html=html.replace('<head>','<head><base href="../v11/">');
+      html=html.replace('<head>','<head><base href="../v11/"><script>window.TabelaNativeBundle='+JSON.stringify(nativeMode)+';<\/script>');
       html=html.replaceAll('<title>TABELA AI V11</title>','<title>TABELA AI V11.1</title>');
       html=html.replaceAll('TABELA AI <span class="ver">V11</span>','TABELA AI <span class="ver">V11.1</span>');
-      html=html.replaceAll('HARDENED FIELD 11.0.0','UNIVERSAL FIELD 11.1.0');
-      html=html.replaceAll('./manifest.webmanifest?b=11.0.0','../v11_1/manifest.webmanifest?b=11.1.0');
-      html=html.replaceAll('./service-worker.js','../v11_1/service-worker.js');
+      html=html.replaceAll('HARDENED FIELD 11.0.0','UNIVERSAL FIELD 11.1.1');
+      html=html.replaceAll('./manifest.webmanifest?b=11.0.0','../v11_1/manifest.webmanifest?b=11.1.1');
       html=html.replaceAll('tabela_ai_v11.csv','tabela_ai_v11_1.csv');
+
+      const oldSW="if('serviceWorker'in navigator)navigator.serviceWorker.register('./service-worker.js?b=11.0.0').catch(()=>{});";
+      const newSW=nativeMode
+        ? "/* Native paket: web service worker kullanılmaz; uygulama dosyaları APK/APP içine gömülüdür. */"
+        : "if('serviceWorker'in navigator)navigator.serviceWorker.register('../v11_1/service-worker.js?b=11.1.1').catch(()=>{});";
+      html=html.replace(oldSW,newSW);
+
       document.open();document.write(html);document.close();
     }catch(error){
       document.getElementById('fallback').style.display='block';
