@@ -23,8 +23,12 @@ final class TabelaVisionOCRBridge: NSObject, WKScriptMessageHandler {
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        let origin = message.frameInfo.securityOrigin
+        let trustedRemote = origin.protocol.lowercased() == "https" && origin.host.lowercased() == Self.trustedHost
+        let trustedBundle = origin.protocol.lowercased() == "file" && origin.host.isEmpty
         guard message.name == "tabelaOCR",
-              message.frameInfo.securityOrigin.host.lowercased() == Self.trustedHost,
+              message.frameInfo.isMainFrame,
+              trustedRemote || trustedBundle,
               let payload = message.body as? [String: Any],
               let requestId = payload["requestId"] as? String,
               requestId.count <= 128,
