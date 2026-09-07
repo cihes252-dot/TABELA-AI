@@ -6,6 +6,9 @@ import WebKit
 /// Request format: { requestId: string, dataUrl: "data:image/jpeg;base64,..." }
 /// Result is emitted as a `tabela:native-ocr` CustomEvent.
 final class TabelaVisionOCRBridge: NSObject, WKScriptMessageHandler {
+    private static let trustedHost = "cihes252-dot.github.io"
+    private static let maxDecodedBytes = 20 * 1024 * 1024
+
     weak var webView: WKWebView?
     private let engine = TabelaVisionOCR()
 
@@ -21,12 +24,30 @@ final class TabelaVisionOCRBridge: NSObject, WKScriptMessageHandler {
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.name == "tabelaOCR",
+              message.frameInfo.securityOrigin.host.lowercased() == Self.trustedHost,
               let payload = message.body as? [String: Any],
               let requestId = payload["requestId"] as? String,
+              requestId.count <= 128,
               let dataURL = payload["dataUrl"] as? String else { return }
 
-        guard let comma = dataURL.firstIndex(of: ","),
-              let data = Data(base64Encoded: String(dataURL[dataURL.index(after: comma)...]), options: .ignoreUnknownCharacters),
+        guard dataURL.hasPrefix("data:image/"),
+              let comma = dataURL.firstIndex(of: ",") else {
+            emit(requestId: requestId, error: "invalid_image_data_url")
+            return
+        }
+
+        let base64 = String(dataURL[dataURL.index(after: comma)...])
+        guard !base64.isEmpty else {
+            emit(requestId: requestId, error: "image_payload_empty")
+            return
+        }
+        // Base64 expands raw bytes by roughly 4/3. Reject oversized payloads before decoding too.
+        guard base64.utf8.count <= (Self.maxDecodedBytes * 4 / 3 + 16_384) else {
+            emit(requestId: requestId, error: "image_payload_too_large")
+            return
+        }
+        guard let data = Data(base64Encoded: base64, options: .ignoreUnknownCharacters),
+              data.count <= Self.maxDecodedBytes,
               let image = UIImage(data: data) else {
             emit(requestId: requestId, error: "image_decode_failed")
             return
