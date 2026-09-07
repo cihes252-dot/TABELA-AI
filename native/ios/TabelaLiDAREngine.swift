@@ -1,24 +1,28 @@
 import UIKit
 import ARKit
 import CoreVideo
-import simd
 
-/// LiDAR / Scene Depth capability and quality layer for TABELA AI.
+/// Runtime sensing capability and depth-quality layer for TABELA AI 11.1.
 ///
-/// Principles:
-/// - A LiDAR-capable device uses Scene Depth + mesh reconstruction when available.
-/// - Each selected sign corner must have usable depth with at least medium confidence.
-/// - If LiDAR is not available (for example iPhone 11), the app falls back to ARKit raycast.
-/// - No metric value is invented from RGB-only image data.
+/// LiDAR-capable devices use Scene Depth and mesh reconstruction when available.
+/// Non-LiDAR ARKit devices remain supported through detected-plane raycasts.
+/// Unsupported devices never receive fabricated metre values.
 enum TabelaLiDAREngine {
     struct Capabilities {
+        let worldTracking: Bool
         let sceneDepth: Bool
         let smoothedSceneDepth: Bool
         let mesh: Bool
         let meshClassification: Bool
 
-        var lidarAvailable: Bool { sceneDepth || smoothedSceneDepth || mesh }
-        var sourceLabel: String { lidarAvailable ? "LiDAR-ARKit-SceneDepth" : "ARKit-Raycast" }
+        var depthAvailable: Bool { sceneDepth || smoothedSceneDepth }
+        var lidarAvailable: Bool { depthAvailable || mesh }
+        var sourceLabel: String {
+            if depthAvailable { return "LiDAR-ARKit-SceneDepth" }
+            if mesh { return "LiDAR-ARKit-Mesh" }
+            if worldTracking { return "ARKit-DetectedPlane-Raycast" }
+            return "ARKit-Unavailable"
+        }
     }
 
     struct DepthSample {
@@ -26,18 +30,33 @@ enum TabelaLiDAREngine {
         /// ARKit confidence map values: 0 low, 1 medium, 2 high.
         let confidence: UInt8
         let imagePoint: CGPoint
+        let spreadMeters: Float
+        let validSampleCount: Int
 
+        var toleranceMeters: Float { max(0.04, meters * 0.025) }
         var acceptable: Bool {
-            meters.isFinite && meters > 0.15 && meters < 25.0 && confidence >= 1
+            meters.isFinite && meters > 0.15 && meters < 25.0 &&
+            confidence >= 1 && validSampleCount >= 9 && spreadMeters <= toleranceMeters
+        }
+
+        var qualityScore: Double {
+            let confidenceScore: Double = confidence >= 2 ? 100 : (confidence == 1 ? 82 : 35)
+            let spreadRatio = Double(spreadMeters / max(toleranceMeters, 0.001))
+            return max(0, min(100, confidenceScore - min(42, spreadRatio * 24)))
         }
     }
 
     static func capabilities() -> Capabilities {
+        let world = ARWorldTrackingConfiguration.isSupported
+        guard world else {
+            return Capabilities(worldTracking: false, sceneDepth: false, smoothedSceneDepth: false, mesh: false, meshClassification: false)
+        }
         let scene = ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth)
         let smooth = ARWorldTrackingConfiguration.supportsFrameSemantics(.smoothedSceneDepth)
         let meshClass = ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification)
         let mesh = meshClass || ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh)
         return Capabilities(
+            worldTracking: true,
             sceneDepth: scene,
             smoothedSceneDepth: smooth,
             mesh: mesh,
@@ -45,16 +64,17 @@ enum TabelaLiDAREngine {
         )
     }
 
-    /// Applies the best available real-world sensing configuration to the AR session.
+    /// Applies the strongest real-world sensing mode supported by the current device.
+    /// Smoothed Scene Depth is preferred for a stable stationary sign surface; sceneDepth is the fallback.
+    /// The two frame semantics are not enabled simultaneously.
     static func configure(_ configuration: ARWorldTrackingConfiguration) {
         let caps = capabilities()
         configuration.planeDetection = [.horizontal, .vertical]
 
-        if caps.sceneDepth {
-            configuration.frameSemantics.insert(.sceneDepth)
-        }
         if caps.smoothedSceneDepth {
             configuration.frameSemantics.insert(.smoothedSceneDepth)
+        } else if caps.sceneDepth {
+            configuration.frameSemantics.insert(.sceneDepth)
         }
 
         if caps.meshClassification {
@@ -64,60 +84,57 @@ enum TabelaLiDAREngine {
         }
 
         configuration.environmentTexturing = .automatic
+        configuration.worldAlignment = .gravity
     }
 
-    /// Reads depth aligned with the camera image for the selected screen point.
-    /// The display transform maps normalized image coordinates to normalized view coordinates;
-    /// therefore its inverse is used to map a touch point back to the depth/camera image.
+    /// Reads a robust local depth sample aligned with the camera image for a selected screen point.
+    /// A 5x5 neighbourhood is used; the median depth and local spread reject edge/noise samples.
     static func depthSample(
         at screenPoint: CGPoint,
         in view: ARSCNView,
         orientation: UIInterfaceOrientation
     ) -> DepthSample? {
         guard let frame = view.session.currentFrame else { return nil }
-        let sceneDepth = frame.smoothedSceneDepth ?? frame.sceneDepth
-        guard let depth = sceneDepth else { return nil }
+        let depthData = frame.smoothedSceneDepth ?? frame.sceneDepth
+        guard let depthData else { return nil }
 
         let viewport = view.bounds.size
         guard viewport.width > 0, viewport.height > 0 else { return nil }
 
-        let viewNorm = CGPoint(
-            x: screenPoint.x / viewport.width,
-            y: screenPoint.y / viewport.height
-        )
-        let imageNorm = viewNorm.applying(
-            frame.displayTransform(for: orientation, viewportSize: viewport).inverted()
-        )
-
+        let viewNorm = CGPoint(x: screenPoint.x / viewport.width, y: screenPoint.y / viewport.height)
+        let imageNorm = viewNorm.applying(frame.displayTransform(for: orientation, viewportSize: viewport).inverted())
         guard imageNorm.x >= 0, imageNorm.x <= 1, imageNorm.y >= 0, imageNorm.y <= 1 else { return nil }
 
-        let depthMap = depth.depthMap
+        let depthMap = depthData.depthMap
         CVPixelBufferLockBaseAddress(depthMap, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
 
-        let w = CVPixelBufferGetWidth(depthMap)
-        let h = CVPixelBufferGetHeight(depthMap)
-        guard w > 0, h > 0, let base = CVPixelBufferGetBaseAddress(depthMap) else { return nil }
+        let width = CVPixelBufferGetWidth(depthMap)
+        let height = CVPixelBufferGetHeight(depthMap)
+        guard width > 0, height > 0, let base = CVPixelBufferGetBaseAddress(depthMap) else { return nil }
 
-        let x = max(0, min(w - 1, Int((imageNorm.x * CGFloat(w - 1)).rounded())))
-        let y = max(0, min(h - 1, Int((imageNorm.y * CGFloat(h - 1)).rounded())))
+        let x = max(0, min(width - 1, Int((imageNorm.x * CGFloat(width - 1)).rounded())))
+        let y = max(0, min(height - 1, Int((imageNorm.y * CGFloat(height - 1)).rounded())))
         let stride = CVPixelBufferGetBytesPerRow(depthMap) / MemoryLayout<Float32>.size
         let floats = base.assumingMemoryBound(to: Float32.self)
 
-        // Median-like local sampling (3x3): sort valid depths and use the middle value.
         var samples: [Float32] = []
-        for yy in max(0, y - 1)...min(h - 1, y + 1) {
-            for xx in max(0, x - 1)...min(w - 1, x + 1) {
-                let v = floats[yy * stride + xx]
-                if v.isFinite && v > 0.05 && v < 50 { samples.append(v) }
+        let radius = 2
+        for yy in max(0, y - radius)...min(height - 1, y + radius) {
+            for xx in max(0, x - radius)...min(width - 1, x + radius) {
+                let value = floats[yy * stride + xx]
+                if value.isFinite && value > 0.10 && value < 40 { samples.append(value) }
             }
         }
-        guard !samples.isEmpty else { return nil }
+        guard samples.count >= 9 else { return nil }
         samples.sort()
         let meters = samples[samples.count / 2]
+        let lowIndex = max(0, Int(Double(samples.count - 1) * 0.10))
+        let highIndex = min(samples.count - 1, Int(Double(samples.count - 1) * 0.90))
+        let spread = max(0, samples[highIndex] - samples[lowIndex])
 
-        var confidence: UInt8 = 2
-        if let confidenceMap = depth.confidenceMap {
+        var confidence: UInt8 = 0
+        if let confidenceMap = depthData.confidenceMap {
             CVPixelBufferLockBaseAddress(confidenceMap, .readOnly)
             defer { CVPixelBufferUnlockBaseAddress(confidenceMap, .readOnly) }
             let cw = CVPixelBufferGetWidth(confidenceMap)
@@ -127,22 +144,35 @@ enum TabelaLiDAREngine {
                 let cy = max(0, min(ch - 1, Int((imageNorm.y * CGFloat(ch - 1)).rounded())))
                 let cstride = CVPixelBufferGetBytesPerRow(confidenceMap)
                 let bytes = cbase.assumingMemoryBound(to: UInt8.self)
-                confidence = bytes[cy * cstride + cx]
+                var confidenceSamples: [UInt8] = []
+                for yy in max(0, cy - 1)...min(ch - 1, cy + 1) {
+                    for xx in max(0, cx - 1)...min(cw - 1, cx + 1) {
+                        confidenceSamples.append(bytes[yy * cstride + xx])
+                    }
+                }
+                confidenceSamples.sort()
+                confidence = confidenceSamples[confidenceSamples.count / 2]
             }
         }
 
-        return DepthSample(meters: meters, confidence: confidence, imagePoint: imageNorm)
+        return DepthSample(
+            meters: meters,
+            confidence: confidence,
+            imagePoint: imageNorm,
+            spreadMeters: spread,
+            validSampleCount: samples.count
+        )
     }
 
-    /// A LiDAR-capable session requires an acceptable depth sample for every accepted corner.
-    /// Non-LiDAR devices intentionally return true here so ARKit raycast remains available.
+    /// LiDAR/Scene-Depth devices require a valid local depth sample for every accepted point.
+    /// Mesh-only LiDAR or non-LiDAR devices continue with ARKit detected-plane quality gates.
     static func depthQualityPasses(
         at screenPoint: CGPoint,
         in view: ARSCNView,
         orientation: UIInterfaceOrientation
     ) -> (passes: Bool, sample: DepthSample?) {
         let caps = capabilities()
-        guard caps.lidarAvailable else { return (true, nil) }
+        guard caps.depthAvailable else { return (true, nil) }
         let sample = depthSample(at: screenPoint, in: view, orientation: orientation)
         return (sample?.acceptable == true, sample)
     }
