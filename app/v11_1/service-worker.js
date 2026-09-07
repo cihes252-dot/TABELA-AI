@@ -1,4 +1,4 @@
-const CACHE='tabela-ai-v11-1-11.1.0';
+const CACHE='tabela-ai-v11-1-11.1.1';
 const CORE=[
   './','./index.html','./manifest.webmanifest',
   '../v11/index.html','../v11/quality-engine.js','../v11/multiframe-engine.js','../v11/segmentation-engine.js',
@@ -18,7 +18,10 @@ self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET')return;
   const url=new URL(event.request.url);
   if(url.origin!==self.location.origin){
-    event.respondWith(caches.match(event.request).then(hit=>hit||fetch(event.request).catch(()=>hit)));
+    event.respondWith(caches.match(event.request).then(hit=>hit||fetch(event.request).then(response=>{
+      if(response&&response.ok)caches.open(CACHE).then(cache=>cache.put(event.request,response.clone())).catch(()=>{});
+      return response;
+    }).catch(()=>hit)));
     return;
   }
   event.respondWith(
