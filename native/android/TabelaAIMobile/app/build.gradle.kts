@@ -9,10 +9,12 @@ android {
 
     defaultConfig {
         applicationId = "ai.tabela.mobile"
-        minSdk = 26
+        minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "11.0.0"
+        versionCode = 2
+        versionName = "11.1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -38,4 +40,6 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.ar:core:1.45.0")
     implementation("com.google.mlkit:text-recognition:16.0.1")
+
+    testImplementation("junit:junit:4.13.2")
 }
