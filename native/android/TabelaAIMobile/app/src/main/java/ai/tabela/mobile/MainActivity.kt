@@ -10,26 +10,34 @@ import android.os.Bundle
 import android.webkit.GeolocationPermissions
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.webkit.WebViewAssetLoader
 import com.google.ar.core.ArCoreApk
 import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
     companion object {
-        private const val TRUSTED_HOST = "cihes252-dot.github.io"
-        private const val TRUSTED_PATH_PREFIX = "/TABELA-AI/"
-        private const val APP_URL = "https://cihes252-dot.github.io/TABELA-AI/app/v11_1/?native=android&build=11.1.0"
+        private const val REMOTE_HOST = "cihes252-dot.github.io"
+        private const val REMOTE_PATH_PREFIX = "/TABELA-AI/"
+        private const val LOCAL_HOST = "appassets.androidplatform.net"
+        private const val LOCAL_PATH_PREFIX = "/assets/"
+        private const val LOCAL_APP_URL = "https://appassets.androidplatform.net/assets/v11_1/index.html?native=android&bundle=1&build=11.1.1"
+        private const val REMOTE_APP_URL = "https://cihes252-dot.github.io/TABELA-AI/app/v11_1/?native=android&build=11.1.1"
     }
 
     private lateinit var webView: WebView
     private lateinit var ocrBridge: TabelaNativeOCRBridge
+    private lateinit var assetLoader: WebViewAssetLoader
     private var pendingMetricPayload: String? = null
+    private var remoteFallbackUsed = false
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -70,6 +78,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         requestRuntimePermissions()
 
+        assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .build()
+
         webView = WebView(this)
         setContentView(webView)
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
@@ -87,10 +99,14 @@ class MainActivity : AppCompatActivity() {
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             cacheMode = WebSettings.LOAD_DEFAULT
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) safeBrowsingEnabled = true
-            userAgentString = "$userAgentString TabelaAIAndroid/11.1.0"
+            userAgentString = "$userAgentString TabelaAIAndroid/11.1.1"
         }
 
         webView.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                return assetLoader.shouldInterceptRequest(request.url) ?: super.shouldInterceptRequest(view, request)
+            }
+
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url
                 if (isTrustedAppUrl(url)) return false
@@ -114,6 +130,14 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 if (isTrustedAppUrl(Uri.parse(url))) publishCapabilities()
             }
+
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                super.onReceivedError(view, request, error)
+                if (request.isForMainFrame && request.url.host == LOCAL_HOST && !remoteFallbackUsed) {
+                    remoteFallbackUsed = true
+                    view.loadUrl(REMOTE_APP_URL)
+                }
+            }
         }
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -124,7 +148,7 @@ class MainActivity : AppCompatActivity() {
                         Manifest.permission.CAMERA
                     ) == PackageManager.PERMISSION_GRANTED
                     val wantsVideo = request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)
-                    val trustedOrigin = request.origin.scheme == "https" && request.origin.host == TRUSTED_HOST
+                    val trustedOrigin = isTrustedOrigin(request.origin)
                     if (cameraAllowed && wantsVideo && trustedOrigin) {
                         request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE))
                     } else {
@@ -138,7 +162,7 @@ class MainActivity : AppCompatActivity() {
                 callback: GeolocationPermissions.Callback
             ) {
                 val uri = runCatching { Uri.parse(origin) }.getOrNull()
-                val trustedOrigin = uri?.scheme == "https" && uri.host == TRUSTED_HOST
+                val trustedOrigin = uri != null && isTrustedOrigin(uri)
                 val fine = ContextCompat.checkSelfPermission(
                     this@MainActivity,
                     Manifest.permission.ACCESS_FINE_LOCATION
@@ -156,7 +180,7 @@ class MainActivity : AppCompatActivity() {
         ocrBridge = TabelaNativeOCRBridge(this, webView)
         webView.addJavascriptInterface(ocrBridge, "TabelaAndroidOCR")
 
-        webView.loadUrl(APP_URL)
+        webView.loadUrl(LOCAL_APP_URL)
     }
 
     private fun requestNativeMeasurement(payload: String) {
@@ -204,13 +228,15 @@ class MainActivity : AppCompatActivity() {
         val fine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val coarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val status = JSONObject.quote(availability?.name ?: "UNKNOWN")
+        val localBundle = webView.url?.let { Uri.parse(it).host == LOCAL_HOST } == true
         val js = """
             window.TabelaNativeCapabilities = Object.assign({}, window.TabelaNativeCapabilities || {}, {
-              platform:'android', app:true, appVersion:'11.1.0', nativeOCR:'mlkit',
+              platform:'android', app:true, appVersion:'11.1.1', nativeOCR:'mlkit',
               arcore:$arcoreJs, arcoreInstalled:${if (installed) "true" else "false"},
               arcoreStatus:$status, arcoreDepth:(window.TabelaNativeCapabilities&&window.TabelaNativeCapabilities.arcoreDepth)||null,
               lidar:false, cameraPermission:${if (cameraGranted) "true" else "false"},
               locationPermission:${if (fine || coarse) "true" else "false"},
+              offlineBundle:${if (localBundle) "true" else "false"},
               source:'ARCore-Depth-or-Plane-Raycast'
             });
             window.dispatchEvent(new CustomEvent('tabela:native-capabilities',{detail:window.TabelaNativeCapabilities}));
@@ -226,8 +252,14 @@ class MainActivity : AppCompatActivity() {
         webView.post { webView.evaluateJavascript(js, null) }
     }
 
-    private fun isTrustedAppUrl(uri: Uri): Boolean =
-        uri.scheme == "https" && uri.host == TRUSTED_HOST && uri.path.orEmpty().startsWith(TRUSTED_PATH_PREFIX)
+    private fun isTrustedOrigin(uri: Uri): Boolean =
+        uri.scheme == "https" && (uri.host == REMOTE_HOST || uri.host == LOCAL_HOST)
+
+    private fun isTrustedAppUrl(uri: Uri): Boolean {
+        if (uri.scheme != "https") return false
+        return (uri.host == REMOTE_HOST && uri.path.orEmpty().startsWith(REMOTE_PATH_PREFIX)) ||
+            (uri.host == LOCAL_HOST && uri.path.orEmpty().startsWith(LOCAL_PATH_PREFIX))
+    }
 
     private fun requestRuntimePermissions() {
         val needs = buildList {
