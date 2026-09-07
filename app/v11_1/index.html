@@ -19,6 +19,14 @@
   <script>
   (async()=>{
     const stamp=Date.now();
+    if('serviceWorker' in navigator){
+      try{
+        const registration=await navigator.serviceWorker.register('./service-worker.js?b=11.1.0',{scope:'./',updateViaCache:'none'});
+        registration.update().catch(()=>{});
+      }catch(error){
+        console.warn('V11.1 service worker kullanılamadı',error);
+      }
+    }
     async function getCore(){
       try{
         const r=await fetch('../v11/index.html?core=11.1.0&t='+stamp,{cache:'no-store'});
