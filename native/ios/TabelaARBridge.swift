@@ -3,17 +3,21 @@ import WebKit
 import ARKit
 import simd
 
-/// Native AR/LiDAR bridge for TABELA AI V11.
-/// The web app requests a real measurement through `window.webkit.messageHandlers.tabelaMetric`.
-/// Native UI collects four real AR points in order: top-left, top-right, bottom-left, bottom-right.
-/// LiDAR devices additionally require Scene Depth confidence; non-LiDAR devices use ARKit raycast.
+/// Native AR/LiDAR bridge for TABELA AI 11.1.
+///
+/// The bridge accepts only real ARKit world-space hits. LiDAR/Scene-Depth devices add a
+/// depth-confidence gate; non-LiDAR devices must hit a detected ARKit plane. Estimated-only
+/// raycasts are never accepted on non-LiDAR hardware.
 final class TabelaARBridge: NSObject, WKScriptMessageHandler {
     weak var webView: WKWebView?
     weak var arView: ARSCNView?
+
     private var points: [SIMD3<Float>] = []
-    private var depthConfidences: [UInt8] = []
-    private var depthMeters: [Float] = []
-    private var requestedShapeType: String = "horizontal-rectangle"
+    private var depthSamples: [TabelaLiDAREngine.DepthSample] = []
+    private var pointKinds: [String] = []
+    private var hitScores: [Double] = []
+    private(set) var requestedShapeType: String = "horizontal-rectangle"
+    private(set) var lastErrorMessage: String = ""
 
     init(webView: WKWebView, arView: ARSCNView) {
         self.webView = webView
@@ -33,6 +37,8 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
            let shapeType = payload["shapeType"] as? String,
            !shapeType.isEmpty {
             requestedShapeType = shapeType
+        } else {
+            requestedShapeType = "horizontal-rectangle"
         }
         NotificationCenter.default.post(
             name: .tabelaMeasurementRequested,
@@ -41,117 +47,224 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
         )
     }
 
+    var requiredPointCount: Int? { TabelaMetricEngine.requiredPointCount(for: requestedShapeType) }
+    var isDynamicShape: Bool { requiredPointCount == nil }
+    var pointCount: Int { points.count }
+    var canFinish: Bool {
+        if let requiredPointCount { return points.count == requiredPointCount }
+        return (3...24).contains(points.count)
+    }
+
+    func nextPrompt() -> String {
+        let labels = TabelaMetricEngine.promptLabels(for: requestedShapeType)
+        if isDynamicShape { return "ÇEVRE NOKTASI \(points.count + 1)" }
+        let index = min(points.count, max(0, labels.count - 1))
+        return labels[index]
+    }
+
     private var interfaceOrientation: UIInterfaceOrientation {
         arView?.window?.windowScene?.interfaceOrientation ?? .portrait
     }
 
+    /// Adds one trusted world-space point. Returns false when the current tap fails a sensor/plane gate.
     @discardableResult
     func addPoint(screenPoint: CGPoint) -> Bool {
         guard let view = arView,
               let frame = view.session.currentFrame,
-              case .normal = frame.camera.trackingState else { return false }
+              case .normal = frame.camera.trackingState else {
+            lastErrorMessage = "ARKit takip durumu kararlı değil. Kamerayı yavaşça hareket ettirin."
+            return false
+        }
+
+        if let requiredPointCount, points.count >= requiredPointCount { return false }
+        if isDynamicShape && points.count >= 24 {
+            lastErrorMessage = "En fazla 24 çevre noktası kabul edilir."
+            return false
+        }
 
         let caps = TabelaLiDAREngine.capabilities()
-        if caps.lidarAvailable {
+        var acceptedDepthSample: TabelaLiDAREngine.DepthSample?
+        if caps.depthAvailable {
             let quality = TabelaLiDAREngine.depthQualityPasses(
                 at: screenPoint,
                 in: view,
                 orientation: interfaceOrientation
             )
-            guard quality.passes, let sample = quality.sample else { return false }
-            depthConfidences.append(sample.confidence)
-            depthMeters.append(sample.meters)
+            guard quality.passes, let sample = quality.sample else {
+                lastErrorMessage = "LiDAR derinlik güveni yetersiz. Yüzeyi yavaşça tarayın ve kenardan uzak bir noktaya tekrar dokunun."
+                return false
+            }
+            acceptedDepthSample = sample
         }
 
-        let existing = view.raycastQuery(
-            from: screenPoint,
-            allowing: .existingPlaneGeometry,
-            alignment: .any
-        ).flatMap { view.session.raycast($0).first }
+        let existingGeometry = raycast(view: view, point: screenPoint, target: .existingPlaneGeometry)
+        let existingInfinite = raycast(view: view, point: screenPoint, target: .existingPlaneInfinite)
+        let estimated = raycast(view: view, point: screenPoint, target: .estimatedPlane)
 
-        let estimated = view.raycastQuery(
-            from: screenPoint,
-            allowing: .estimatedPlane,
-            alignment: .any
-        ).flatMap { view.session.raycast($0).first }
+        let selected: (result: ARRaycastResult, kind: String, score: Double)?
+        if let existingGeometry {
+            selected = (existingGeometry, "ExistingPlaneGeometry", 100)
+        } else if let existingInfinite {
+            selected = (existingInfinite, "ExistingPlaneInfinite", 92)
+        } else if let estimated, caps.depthAvailable {
+            // Estimated plane is accepted only when independent Scene Depth is also valid.
+            selected = (estimated, "EstimatedPlane+SceneDepth", 86)
+        } else {
+            selected = nil
+        }
 
-        guard let hit = existing ?? estimated else {
-            if caps.lidarAvailable {
-                _ = depthConfidences.popLast()
-                _ = depthMeters.popLast()
-            }
+        guard let selected else {
+            lastErrorMessage = caps.depthAvailable
+                ? "LiDAR derinliği var ancak güvenilir AR yüzeyi bulunamadı. Kamerayı yüzey üzerinde gezdirin."
+                : "Algılanmış ARKit düzlemi bulunamadı. iPhone'u yüzey üzerinde yavaşça hareket ettirip tekrar dokunun."
             return false
         }
 
-        let t = hit.worldTransform.columns.3
-        points.append(SIMD3<Float>(t.x, t.y, t.z))
-        if points.count == 4 { finishMeasurement() }
+        let transform = selected.result.worldTransform.columns.3
+        points.append(SIMD3<Float>(transform.x, transform.y, transform.z))
+        pointKinds.append(selected.kind)
+        hitScores.append(selected.score)
+        if let acceptedDepthSample { depthSamples.append(acceptedDepthSample) }
+        lastErrorMessage = ""
         return true
     }
 
-    func cancel() { reset() }
-
-    private func reset() {
-        points.removeAll()
-        depthConfidences.removeAll()
-        depthMeters.removeAll()
+    func undoLastPoint() {
+        guard !points.isEmpty else { return }
+        points.removeLast()
+        if !pointKinds.isEmpty { pointKinds.removeLast() }
+        if !hitScores.isEmpty { hitScores.removeLast() }
+        // Depth samples exist only on Scene-Depth devices and correspond one-to-one with accepted points.
+        if !depthSamples.isEmpty { depthSamples.removeLast() }
     }
 
-    private func finishMeasurement() {
-        guard points.count == 4, let frame = arView?.session.currentFrame else { return }
-        let caps = TabelaLiDAREngine.capabilities()
+    func cancel(notify: Bool = true) {
+        reset()
+        if notify { emitError(code: "cancelled", message: "Ölçüm kullanıcı tarafından iptal edildi.") }
+    }
 
-        if caps.lidarAvailable && depthConfidences.count != 4 {
+    func emitUnavailable(code: String, message: String) {
+        lastErrorMessage = message
+        emitError(code: code, message: message)
+    }
+
+    /// Finishes the current shape measurement. Returns true only if the strict metric engine verified it.
+    @discardableResult
+    func finishMeasurement() -> Bool {
+        guard canFinish, let frame = arView?.session.currentFrame else {
+            lastErrorMessage = "Şekil için yeterli 3B nokta yok."
+            return false
+        }
+
+        let caps = TabelaLiDAREngine.capabilities()
+        if caps.depthAvailable && depthSamples.count != points.count {
+            lastErrorMessage = "LiDAR derinlik örnekleri eksik. Ölçüm reddedildi."
+            emitError(code: "depth_samples_incomplete", message: lastErrorMessage)
             reset()
-            return
+            return false
         }
 
         let cameraColumn = frame.camera.transform.columns.3
         let camera = SIMD3<Float>(cameraColumn.x, cameraColumn.y, cameraColumn.z)
-        let qualityScore: Double? = caps.lidarAvailable
-            ? (depthConfidences.map { Double($0) / 2.0 }.reduce(0, +) / 4.0) * 100.0
-            : nil
-        let source = caps.lidarAvailable ? "LiDAR-ARKit-SceneDepth" : "ARKit-Raycast"
+        let hitQuality = hitScores.isEmpty ? 0 : hitScores.reduce(0, +) / Double(hitScores.count)
+        let sensorQuality: Double? = depthSamples.isEmpty
+            ? nil
+            : depthSamples.map(\.qualityScore).reduce(0, +) / Double(depthSamples.count)
+        let depthAssisted = caps.depthAvailable && depthSamples.count == points.count
+        let source: String
+        if depthAssisted {
+            source = "LiDAR-ARKit-SceneDepth+Raycast"
+        } else if caps.mesh {
+            source = "LiDAR-ARKit-Mesh-Raycast"
+        } else {
+            source = "ARKit-DetectedPlane-Raycast"
+        }
 
         let result = TabelaMetricEngine.measure(
-            topLeft: points[0],
-            topRight: points[1],
-            bottomLeft: points[2],
-            bottomRight: points[3],
+            points: points,
+            shapeType: requestedShapeType,
             camera: camera,
             source: source,
-            qualityScore: qualityScore,
+            sensorQuality: sensorQuality,
+            hitQuality: hitQuality,
+            depthAssisted: depthAssisted,
             lidar: caps.lidarAvailable
         )
 
-        guard result.verified else {
+        let payload = makePayload(result: result)
+        if result.verified {
+            emitVerified(payload)
             reset()
-            return
+            return true
         }
 
+        let reason = result.failure_reasons.isEmpty ? "quality_below_threshold" : result.failure_reasons.joined(separator: ", ")
+        lastErrorMessage = "Ölçüm kalite kapısından geçmedi: \(reason)"
+        emitError(code: "measurement_rejected", message: lastErrorMessage, extra: payload)
+        reset()
+        return false
+    }
+
+    private func raycast(view: ARSCNView, point: CGPoint, target: ARRaycastQuery.Target) -> ARRaycastResult? {
+        view.raycastQuery(from: point, allowing: target, alignment: .any)
+            .flatMap { view.session.raycast($0).first }
+    }
+
+    private func reset() {
+        points.removeAll()
+        depthSamples.removeAll()
+        pointKinds.removeAll()
+        hitScores.removeAll()
+    }
+
+    private func makePayload(result: TabelaMetricResult) -> [String: Any] {
         var payload: [String: Any] = [
-            "verified": true,
+            "verified": result.verified,
             "source": result.source,
-            "shapeType": requestedShapeType,
+            "shapeType": result.shape_type,
             "lidar": result.lidar,
+            "depthAssisted": result.depth_assisted,
+            "qualityScore": result.quality_score,
             "widthM": result.width_m,
             "heightM": result.height_m,
-            "areaM2": result.area_m2,
-            "depthSamplesM": depthMeters.map { Double($0) },
-            "depthConfidence": depthConfidences.map { Int($0) }
+            "planeDeviationM": result.plane_deviation_m,
+            "pointCount": result.point_count,
+            "pointKinds": pointKinds,
+            "failureReasons": result.failure_reasons,
+            "diagnostics": result.diagnostics,
+            "depthSamplesM": depthSamples.map { Double($0.meters) },
+            "depthConfidence": depthSamples.map { Int($0.confidence) },
+            "depthSpreadM": depthSamples.map { Double($0.spreadMeters) }
         ]
-        if let quality = result.quality_score { payload["qualityScore"] = quality }
+        if let area = result.area_m2 { payload["areaM2"] = area }
+        if let diameter = result.diameter_m { payload["diameterM"] = diameter }
+        if let polygonArea = result.polygon_area_m2 { payload["polygonAreaM2"] = polygonArea }
         if let distance = result.distance_m { payload["distanceM"] = distance }
+        return payload
+    }
 
-        guard JSONSerialization.isValidJSONObject(payload),
-              let data = try? JSONSerialization.data(withJSONObject: payload),
-              let json = String(data: data, encoding: .utf8) else {
-            reset()
-            return
+    private func emitVerified(_ payload: [String: Any]) {
+        guard let json = jsonString(payload) else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript("window.TabelaMetric&&window.TabelaMetric.submitVerified(\(json));")
         }
+    }
 
-        webView?.evaluateJavaScript("window.TabelaMetric.submitVerified(\(json))")
-        reset()
+    private func emitError(code: String, message: String, extra: [String: Any] = [:]) {
+        var detail = extra
+        detail["code"] = code
+        detail["message"] = message
+        guard let json = jsonString(detail) else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('tabela:measurement-error',{detail:\(json)}));")
+        }
+    }
+
+    private func jsonString(_ object: Any) -> String? {
+        guard JSONSerialization.isValidJSONObject(object),
+              let data = try? JSONSerialization.data(withJSONObject: object),
+              let json = String(data: data, encoding: .utf8) else { return nil }
+        return json
     }
 }
 
