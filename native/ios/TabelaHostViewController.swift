@@ -11,6 +11,7 @@ import AVFoundation
 final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigationDelegate {
     private static let trustedHost = "cihes252-dot.github.io"
     private static let trustedPathPrefix = "/TABELA-AI/"
+    private static let appVersion = "11.1.1"
 
     private let arView = ARSCNView(frame: .zero)
     private var webView: WKWebView!
@@ -20,6 +21,8 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
     private let undoButton = UIButton(type: .system)
     private let finishButton = UIButton(type: .system)
     private let cancelButton = UIButton(type: .system)
+    private var loadedBundledUI = false
+    private var remoteFallbackUsed = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -36,7 +39,7 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
         window.TabelaNativeCapabilities = {
           platform: 'ios',
           app: true,
-          appVersion: '11.1.0',
+          appVersion: '\(Self.appVersion)',
           nativeOCR: 'apple-vision',
           arkit: \(caps.worldTracking ? "true" : "false"),
           lidar: \(caps.lidarAvailable ? "true" : "false"),
@@ -44,6 +47,7 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
           smoothedSceneDepth: \(caps.smoothedSceneDepth ? "true" : "false"),
           mesh: \(caps.mesh ? "true" : "false"),
           cameraPermission: \(cameraStatus == .authorized ? "true" : "false"),
+          offlineBundle: false,
           source: '\(caps.sourceLabel)'
         };
         """
@@ -149,8 +153,34 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
         }
     }
 
+    private var bundledWebRoot: URL? {
+        Bundle.main.resourceURL?.appendingPathComponent("WebApp", isDirectory: true)
+    }
+
     private func loadCurrentApp() {
-        guard let url = URL(string: "https://cihes252-dot.github.io/TABELA-AI/app/v11_1/?native=ios&build=11.1.0") else { return }
+        if let root = bundledWebRoot {
+            let index = root.appendingPathComponent("v11_1/index.html", isDirectory: false)
+            if FileManager.default.fileExists(atPath: index.path) {
+                var parts = URLComponents(url: index, resolvingAgainstBaseURL: false)
+                parts?.queryItems = [
+                    URLQueryItem(name: "native", value: "ios"),
+                    URLQueryItem(name: "bundle", value: "1"),
+                    URLQueryItem(name: "build", value: Self.appVersion)
+                ]
+                let localURL = parts?.url ?? index
+                loadedBundledUI = true
+                webView.loadFileURL(localURL, allowingReadAccessTo: root)
+                return
+            }
+        }
+        loadRemoteFallback()
+    }
+
+    private func loadRemoteFallback() {
+        guard !remoteFallbackUsed else { return }
+        remoteFallbackUsed = true
+        loadedBundledUI = false
+        guard let url = URL(string: "https://cihes252-dot.github.io/TABELA-AI/app/v11_1/?native=ios&build=\(Self.appVersion)") else { return }
         webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30))
     }
 
@@ -159,10 +189,11 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
         let cameraGranted = AVCaptureDevice.authorizationStatus(for: .video) == .authorized
         let script = """
         window.TabelaNativeCapabilities=Object.assign({},window.TabelaNativeCapabilities||{}, {
-          platform:'ios',app:true,appVersion:'11.1.0',nativeOCR:'apple-vision',
+          platform:'ios',app:true,appVersion:'\(Self.appVersion)',nativeOCR:'apple-vision',
           arkit:\(caps.worldTracking ? "true" : "false"),lidar:\(caps.lidarAvailable ? "true" : "false"),
           sceneDepth:\(caps.sceneDepth ? "true" : "false"),smoothedSceneDepth:\(caps.smoothedSceneDepth ? "true" : "false"),
-          mesh:\(caps.mesh ? "true" : "false"),cameraPermission:\(cameraGranted ? "true" : "false"),source:'\(caps.sourceLabel)'
+          mesh:\(caps.mesh ? "true" : "false"),cameraPermission:\(cameraGranted ? "true" : "false"),
+          offlineBundle:\(loadedBundledUI ? "true" : "false"),source:'\(caps.sourceLabel)'
         });
         window.dispatchEvent(new CustomEvent('tabela:native-capabilities',{detail:window.TabelaNativeCapabilities}));
         """
@@ -171,6 +202,10 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         publishRuntimeCapabilities()
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        if loadedBundledUI { loadRemoteFallback() }
     }
 
     func webView(
@@ -202,9 +237,10 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
         type: WKMediaCaptureType,
         decisionHandler: @escaping (WKPermissionDecision) -> Void
     ) {
-        let trusted = origin.protocol.lowercased() == "https" && origin.host.lowercased() == Self.trustedHost
+        let remoteTrusted = origin.protocol.lowercased() == "https" && origin.host.lowercased() == Self.trustedHost
+        let localTrusted = origin.protocol.lowercased() == "file" && origin.host.isEmpty && loadedBundledUI
         let cameraAuthorized = AVCaptureDevice.authorizationStatus(for: .video) == .authorized
-        if trusted && cameraAuthorized && type == .camera {
+        if (remoteTrusted || localTrusted) && cameraAuthorized && type == .camera {
             decisionHandler(.grant)
         } else {
             decisionHandler(.deny)
@@ -312,8 +348,11 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
     }
 
     private func isTrustedAppURL(_ url: URL) -> Bool {
-        url.scheme?.lowercased() == "https" &&
-        url.host?.lowercased() == Self.trustedHost &&
-        url.path.hasPrefix(Self.trustedPathPrefix)
+        if url.isFileURL, loadedBundledUI, let root = bundledWebRoot {
+            return url.standardizedFileURL.path.hasPrefix(root.standardizedFileURL.path)
+        }
+        return url.scheme?.lowercased() == "https" &&
+            url.host?.lowercased() == Self.trustedHost &&
+            url.path.hasPrefix(Self.trustedPathPrefix)
     }
 }
