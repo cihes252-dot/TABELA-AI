@@ -136,21 +136,21 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
     private func requestCameraThenLoad() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
-            loadV11()
+            loadCurrentApp()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] _ in
                 DispatchQueue.main.async {
-                    self?.loadV11()
+                    self?.loadCurrentApp()
                     self?.publishRuntimeCapabilities()
                 }
             }
         default:
-            loadV11()
+            loadCurrentApp()
         }
     }
 
-    private func loadV11() {
-        guard let url = URL(string: "https://cihes252-dot.github.io/TABELA-AI/app/v11/?native=ios&build=11.1.0") else { return }
+    private func loadCurrentApp() {
+        guard let url = URL(string: "https://cihes252-dot.github.io/TABELA-AI/app/v11_1/?native=ios&build=11.1.0") else { return }
         webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30))
     }
 
@@ -202,9 +202,9 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
         type: WKMediaCaptureType,
         decisionHandler: @escaping (WKPermissionDecision) -> Void
     ) {
-        let trusted = origin.host == Self.trustedHost
+        let trusted = origin.protocol.lowercased() == "https" && origin.host.lowercased() == Self.trustedHost
         let cameraAuthorized = AVCaptureDevice.authorizationStatus(for: .video) == .authorized
-        if trusted && cameraAuthorized && (type == .camera || type == .cameraAndMicrophone) {
+        if trusted && cameraAuthorized && type == .camera {
             decisionHandler(.grant)
         } else {
             decisionHandler(.deny)
@@ -300,7 +300,7 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
 
         let caps = TabelaLiDAREngine.capabilities()
         let mode: String
-        if caps.depthAvailable { mode = "LiDAR + Scene Depth + ARKit" }
+        if caps.depthAvailable { mode = "LiDAR + Scene Depth 3B + ARKit çapraz kontrol" }
         else if caps.mesh { mode = "LiDAR mesh + ARKit" }
         else { mode = "ARKit algılanmış düzlem" }
 
