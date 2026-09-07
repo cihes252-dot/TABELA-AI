@@ -39,7 +39,8 @@ jobs:
           set -euo pipefail
           mkdir -p dist/mobile/android
           cp native/android/TabelaAIMobile/app/build/outputs/apk/debug/app-debug.apk dist/mobile/android/TabelaAI-Android-11.1.0.apk
-          sha256sum dist/mobile/android/TabelaAI-Android-11.1.0.apk > dist/mobile/android/TabelaAI-Android-11.1.0.sha256
+          (cd dist/mobile/android && sha256sum TabelaAI-Android-11.1.0.apk > TabelaAI-Android-11.1.0.sha256)
+          (cd dist/mobile/android && sha256sum -c TabelaAI-Android-11.1.0.sha256)
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
