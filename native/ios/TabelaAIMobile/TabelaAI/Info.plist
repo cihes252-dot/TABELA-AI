@@ -9,8 +9,8 @@
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>11.0.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>11.1.0</string>
+    <key>CFBundleVersion</key><string>2</string>
     <key>LSRequiresIPhoneOS</key><true/>
     <key>NSCameraUsageDescription</key><string>TABELA AI tabela tespiti, OCR ve gerçek AR/LiDAR ölçümü için kamerayı kullanır.</string>
     <key>NSLocationWhenInUseUsageDescription</key><string>TABELA AI saha kaydına GPS konumu ve konum doğruluğunu eklemek için konumunuzu kullanır.</string>
