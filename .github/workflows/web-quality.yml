@@ -48,7 +48,10 @@ jobs:
         run: |
           set -euo pipefail
           grep -q 'TABELA AI V11.1' app/v11_1/index.html
-          grep -q 'UNIVERSAL FIELD 11.1.0' app/v11_1/index.html
-          grep -q "serviceWorker.register('./service-worker.js?b=11.1.0'" app/v11_1/index.html
+          grep -q 'UNIVERSAL FIELD 11.1.1' app/v11_1/index.html
+          grep -q "serviceWorker.register('./service-worker.js?b=11.1.1'" app/v11_1/index.html
+          grep -q "nativeMode" app/v11_1/index.html
           grep -q "app/v11_1" index.html
-          grep -q '11.1.0' app/v11_1/manifest.webmanifest
+          grep -q '11.1.1' app/v11_1/manifest.webmanifest
+          grep -q "tabela-ai-v11-1-11.1.1" app/v11_1/service-worker.js
+          grep -q "11.1-native-first" app/v11/ocr-ensemble.js
