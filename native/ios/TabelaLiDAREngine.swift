@@ -1,6 +1,7 @@
 import UIKit
 import ARKit
 import CoreVideo
+import simd
 
 /// Runtime sensing capability and depth-quality layer for TABELA AI 11.1.
 ///
@@ -29,6 +30,7 @@ enum TabelaLiDAREngine {
         let meters: Float
         /// ARKit confidence map values: 0 low, 1 medium, 2 high.
         let confidence: UInt8
+        /// Normalized camera-image coordinate in [0, 1].
         let imagePoint: CGPoint
         let spreadMeters: Float
         let validSampleCount: Int
@@ -162,6 +164,34 @@ enum TabelaLiDAREngine {
             spreadMeters: spread,
             validSampleCount: samples.count
         )
+    }
+
+    /// Reprojects a trusted Scene Depth sample through the calibrated ARCamera intrinsics into
+    /// ARKit world coordinates. This is the metric point used on LiDAR devices; it avoids deriving
+    /// metres from RGB pixels or from an estimated 2-D scale.
+    static func worldPoint(from sample: DepthSample, frame: ARFrame) -> SIMD3<Float>? {
+        guard sample.acceptable else { return nil }
+        let resolution = frame.camera.imageResolution
+        guard resolution.width > 1, resolution.height > 1 else { return nil }
+
+        let u = Float(sample.imagePoint.x * resolution.width)
+        let v = Float(sample.imagePoint.y * resolution.height)
+        let k = frame.camera.intrinsics
+        let fx = k.columns.0.x
+        let fy = k.columns.1.y
+        let cx = k.columns.2.x
+        let cy = k.columns.2.y
+        guard fx.isFinite, fy.isFinite, cx.isFinite, cy.isFinite,
+              abs(fx) > 1e-5, abs(fy) > 1e-5 else { return nil }
+
+        // ARKit camera coordinates: +X right, +Y up, camera looks toward -Z.
+        let z = sample.meters
+        let xCamera = (u - cx) / fx * z
+        let yCamera = -(v - cy) / fy * z
+        let cameraPoint = SIMD4<Float>(xCamera, yCamera, -z, 1)
+        let world = frame.camera.transform * cameraPoint
+        guard world.x.isFinite, world.y.isFinite, world.z.isFinite else { return nil }
+        return SIMD3<Float>(world.x, world.y, world.z)
     }
 
     /// LiDAR/Scene-Depth devices require a valid local depth sample for every accepted point.
