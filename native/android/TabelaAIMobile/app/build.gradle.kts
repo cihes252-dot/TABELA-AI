@@ -11,14 +11,21 @@ android {
         applicationId = "ai.tabela.mobile"
         minSdk = 24
         targetSdk = 34
-        versionCode = 2
-        versionName = "11.1.0"
+        versionCode = 3
+        versionName = "11.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures {
         buildConfig = true
+    }
+
+    sourceSets {
+        getByName("main") {
+            // Package the current web UI/engines so the native field app can start without GitHub Pages.
+            assets.srcDir("../../../../app")
+        }
     }
 
     buildTypes {
@@ -42,6 +49,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-ktx:1.9.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.webkit:webkit:1.11.0")
     implementation("com.google.ar:core:1.45.0")
     implementation("com.google.mlkit:text-recognition:16.0.1")
 
