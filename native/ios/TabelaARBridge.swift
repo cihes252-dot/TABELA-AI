@@ -5,15 +5,16 @@ import simd
 
 /// Native AR/LiDAR bridge for TABELA AI 11.1.
 ///
-/// The bridge accepts only real ARKit world-space hits. LiDAR/Scene-Depth devices add a
-/// depth-confidence gate; non-LiDAR devices must hit a detected ARKit plane. Estimated-only
-/// raycasts are never accepted on non-LiDAR hardware.
+/// The bridge accepts only real ARKit world-space hits. LiDAR/Scene-Depth devices use calibrated
+/// depth reprojection for the metric 3D point and cross-check it against an ARKit raycast. Non-LiDAR
+/// devices must hit a detected ARKit plane. Estimated-only raycasts are never accepted without depth.
 final class TabelaARBridge: NSObject, WKScriptMessageHandler {
     weak var webView: WKWebView?
     weak var arView: ARSCNView?
 
     private var points: [SIMD3<Float>] = []
     private var depthSamples: [TabelaLiDAREngine.DepthSample] = []
+    private var depthRayErrors: [Double] = []
     private var pointKinds: [String] = []
     private var hitScores: [Double] = []
     private(set) var requestedShapeType: String = "horizontal-rectangle"
@@ -107,7 +108,7 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
         } else if let existingInfinite {
             selected = (existingInfinite, "ExistingPlaneInfinite", 92)
         } else if let estimated, caps.depthAvailable {
-            // Estimated plane is accepted only when independent Scene Depth is also valid.
+            // Estimated plane is accepted only when independent Scene Depth is valid and agrees with it.
             selected = (estimated, "EstimatedPlane+SceneDepth", 86)
         } else {
             selected = nil
@@ -115,16 +116,43 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
 
         guard let selected else {
             lastErrorMessage = caps.depthAvailable
-                ? "LiDAR derinliği var ancak güvenilir AR yüzeyi bulunamadı. Kamerayı yüzey üzerinde gezdirin."
+                ? "LiDAR derinliği var ancak çapraz kontrol için güvenilir AR yüzeyi bulunamadı. Kamerayı yüzey üzerinde gezdirin."
                 : "Algılanmış ARKit düzlemi bulunamadı. iPhone'u yüzey üzerinde yavaşça hareket ettirip tekrar dokunun."
             return false
         }
 
-        let transform = selected.result.worldTransform.columns.3
-        points.append(SIMD3<Float>(transform.x, transform.y, transform.z))
-        pointKinds.append(selected.kind)
-        hitScores.append(selected.score)
+        let rayColumn = selected.result.worldTransform.columns.3
+        let rayPoint = SIMD3<Float>(rayColumn.x, rayColumn.y, rayColumn.z)
+        var finalPoint = rayPoint
+        var finalKind = selected.kind
+        var finalHitScore = selected.score
+        var rayError: Double?
+
+        if let sample = acceptedDepthSample {
+            guard let depthPoint = TabelaLiDAREngine.worldPoint(from: sample, frame: frame) else {
+                lastErrorMessage = "LiDAR derinlik noktası 3B dünya koordinatına dönüştürülemedi. Ölçüm reddedildi."
+                return false
+            }
+            let error = Double(simd_distance(depthPoint, rayPoint))
+            let tolerance = max(0.05, min(0.20, Double(sample.meters) * 0.03))
+            guard error.isFinite, error <= tolerance else {
+                let cm = Int((error * 100).rounded())
+                let limitCm = Int((tolerance * 100).rounded())
+                lastErrorMessage = "LiDAR ve ARKit yüzeyi uyuşmuyor (\(cm) cm; sınır \(limitCm) cm). Kamerayı yüzeyde gezdirip tekrar dokunun."
+                return false
+            }
+            finalPoint = depthPoint
+            finalKind = selected.kind + "+SceneDepth3D"
+            let consistency = max(0, 1 - error / max(tolerance, 0.001))
+            finalHitScore = max(70, min(selected.score, sample.qualityScore) * (0.90 + consistency * 0.10))
+            rayError = error
+        }
+
+        points.append(finalPoint)
+        pointKinds.append(finalKind)
+        hitScores.append(finalHitScore)
         if let acceptedDepthSample { depthSamples.append(acceptedDepthSample) }
+        if let rayError { depthRayErrors.append(rayError) }
         lastErrorMessage = ""
         return true
     }
@@ -134,8 +162,9 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
         points.removeLast()
         if !pointKinds.isEmpty { pointKinds.removeLast() }
         if !hitScores.isEmpty { hitScores.removeLast() }
-        // Depth samples exist only on Scene-Depth devices and correspond one-to-one with accepted points.
+        // Depth arrays exist only on Scene-Depth devices and correspond one-to-one with accepted points.
         if !depthSamples.isEmpty { depthSamples.removeLast() }
+        if !depthRayErrors.isEmpty { depthRayErrors.removeLast() }
     }
 
     func cancel(notify: Bool = true) {
@@ -157,8 +186,8 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
         }
 
         let caps = TabelaLiDAREngine.capabilities()
-        if caps.depthAvailable && depthSamples.count != points.count {
-            lastErrorMessage = "LiDAR derinlik örnekleri eksik. Ölçüm reddedildi."
+        if caps.depthAvailable && (depthSamples.count != points.count || depthRayErrors.count != points.count) {
+            lastErrorMessage = "LiDAR derinlik/AR çapraz kontrol örnekleri eksik. Ölçüm reddedildi."
             emitError(code: "depth_samples_incomplete", message: lastErrorMessage)
             reset()
             return false
@@ -170,10 +199,10 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
         let sensorQuality: Double? = depthSamples.isEmpty
             ? nil
             : depthSamples.map(\.qualityScore).reduce(0, +) / Double(depthSamples.count)
-        let depthAssisted = caps.depthAvailable && depthSamples.count == points.count
+        let depthAssisted = caps.depthAvailable && depthSamples.count == points.count && depthRayErrors.count == points.count
         let source: String
         if depthAssisted {
-            source = "LiDAR-ARKit-SceneDepth+Raycast"
+            source = "LiDAR-ARKit-SceneDepth-Reprojected+Raycast"
         } else if caps.mesh {
             source = "LiDAR-ARKit-Mesh-Raycast"
         } else {
@@ -213,6 +242,7 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
     private func reset() {
         points.removeAll()
         depthSamples.removeAll()
+        depthRayErrors.removeAll()
         pointKinds.removeAll()
         hitScores.removeAll()
     }
@@ -234,8 +264,13 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
             "diagnostics": result.diagnostics,
             "depthSamplesM": depthSamples.map { Double($0.meters) },
             "depthConfidence": depthSamples.map { Int($0.confidence) },
-            "depthSpreadM": depthSamples.map { Double($0.spreadMeters) }
+            "depthSpreadM": depthSamples.map { Double($0.spreadMeters) },
+            "depthRaycastErrorM": depthRayErrors
         ]
+        if !depthRayErrors.isEmpty {
+            payload["maxDepthRaycastErrorM"] = depthRayErrors.max() ?? 0
+            payload["avgDepthRaycastErrorM"] = depthRayErrors.reduce(0, +) / Double(depthRayErrors.count)
+        }
         if let area = result.area_m2 { payload["areaM2"] = area }
         if let diameter = result.diameter_m { payload["diameterM"] = diameter }
         if let polygonArea = result.polygon_area_m2 { payload["polygonAreaM2"] = polygonArea }
