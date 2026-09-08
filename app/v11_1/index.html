@@ -55,7 +55,7 @@
       html=html.replaceAll('tabela_ai_v11.json','tabela_ai_v11_1.json');
 
       const storageScript='<script src="./storage-engine.js"><\/script>';
-      const storageWithResilience='<script src="./storage-engine.js"><\/script><script src="../v11_1/resilience.js?b=11.1.2"><\/script>';
+      const storageWithResilience='<script src="./storage-engine.js"><\/script><script src="../v11_1/resilience.js?b=11.1.2"><\/script><script src="../v11_1/field-hardening.js?b=11.1.2"><\/script>';
       html=html.replace(storageScript,storageWithResilience);
 
       const oldSW="if('serviceWorker'in navigator)navigator.serviceWorker.register('./service-worker.js?b=11.0.0').catch(()=>{});";
