@@ -57,23 +57,26 @@ jobs:
           APP_PATH="$(find build/SimulatorDerivedData/Build/Products/Debug-iphonesimulator -maxdepth 1 -name 'TabelaAI.app' -print -quit)"
           test -n "$APP_PATH"
           test -f "$APP_PATH/WebApp/v11_1/index.html"
+          test -f "$APP_PATH/WebApp/v11_1/resilience.js"
           test -f "$APP_PATH/WebApp/v11/ocr-ensemble.js"
+          test -f "$APP_PATH/WebApp/v11/storage-engine.js"
           test -f "$APP_PATH/WebApp/v11/measurement-engine.js"
-          grep -q '11.1.1' "$APP_PATH/WebApp/v11_1/index.html"
-          grep -q '11.1-independent-verify' "$APP_PATH/WebApp/v11/ocr-ensemble.js"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")" = "11.1.1"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")" = "3"
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" dist/mobile/ios/TabelaAI-ios-simulator-11.1.1.zip
-          (cd dist/mobile/ios && shasum -a 256 TabelaAI-ios-simulator-11.1.1.zip > TabelaAI-ios-simulator-11.1.1.sha256)
-          (cd dist/mobile/ios && shasum -a 256 -c TabelaAI-ios-simulator-11.1.1.sha256)
+          grep -q '11.1.2' "$APP_PATH/WebApp/v11_1/index.html"
+          grep -q '11.1.2-resilient-ocr' "$APP_PATH/WebApp/v11/ocr-ensemble.js"
+          grep -q '11.1.2-indexeddb-atomic' "$APP_PATH/WebApp/v11/storage-engine.js"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")" = "11.1.2"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")" = "4"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" dist/mobile/ios/TabelaAI-ios-simulator-11.1.2.zip
+          (cd dist/mobile/ios && shasum -a 256 TabelaAI-ios-simulator-11.1.2.zip > TabelaAI-ios-simulator-11.1.2.sha256)
+          (cd dist/mobile/ios && shasum -a 256 -c TabelaAI-ios-simulator-11.1.2.sha256)
 
       - name: Upload iOS Simulator artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tabela-ai-ios-simulator-11-1-1
+          name: tabela-ai-ios-simulator-11-1-2
           path: |
-            dist/mobile/ios/TabelaAI-ios-simulator-11.1.1.zip
-            dist/mobile/ios/TabelaAI-ios-simulator-11.1.1.sha256
+            dist/mobile/ios/TabelaAI-ios-simulator-11.1.2.zip
+            dist/mobile/ios/TabelaAI-ios-simulator-11.1.2.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -97,22 +100,25 @@ jobs:
           APP_PATH="$(find build/DeviceDerivedData/Build/Products/Debug-iphoneos -maxdepth 1 -name 'TabelaAI.app' -print -quit)"
           test -n "$APP_PATH"
           test -f "$APP_PATH/WebApp/v11_1/index.html"
+          test -f "$APP_PATH/WebApp/v11_1/resilience.js"
           test -f "$APP_PATH/WebApp/v11/ocr-ensemble.js"
+          test -f "$APP_PATH/WebApp/v11/storage-engine.js"
           test -f "$APP_PATH/WebApp/v11/measurement-engine.js"
-          grep -q '11.1.1' "$APP_PATH/WebApp/v11_1/index.html"
-          grep -q '11.1-independent-verify' "$APP_PATH/WebApp/v11/ocr-ensemble.js"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")" = "11.1.1"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")" = "3"
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" dist/mobile/ios/TabelaAI-ios-device-unsigned-11.1.1.zip
-          (cd dist/mobile/ios && shasum -a 256 TabelaAI-ios-device-unsigned-11.1.1.zip > TabelaAI-ios-device-unsigned-11.1.1.sha256)
-          (cd dist/mobile/ios && shasum -a 256 -c TabelaAI-ios-device-unsigned-11.1.1.sha256)
+          grep -q '11.1.2' "$APP_PATH/WebApp/v11_1/index.html"
+          grep -q '11.1.2-resilient-ocr' "$APP_PATH/WebApp/v11/ocr-ensemble.js"
+          grep -q '11.1.2-indexeddb-atomic' "$APP_PATH/WebApp/v11/storage-engine.js"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")" = "11.1.2"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")" = "4"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" dist/mobile/ios/TabelaAI-ios-device-unsigned-11.1.2.zip
+          (cd dist/mobile/ios && shasum -a 256 TabelaAI-ios-device-unsigned-11.1.2.zip > TabelaAI-ios-device-unsigned-11.1.2.sha256)
+          (cd dist/mobile/ios && shasum -a 256 -c TabelaAI-ios-device-unsigned-11.1.2.sha256)
 
       - name: Upload unsigned iPhone device artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tabela-ai-ios-device-unsigned-11-1-1
+          name: tabela-ai-ios-device-unsigned-11-1-2
           path: |
-            dist/mobile/ios/TabelaAI-ios-device-unsigned-11.1.1.zip
-            dist/mobile/ios/TabelaAI-ios-device-unsigned-11.1.1.sha256
+            dist/mobile/ios/TabelaAI-ios-device-unsigned-11.1.2.zip
+            dist/mobile/ios/TabelaAI-ios-device-unsigned-11.1.2.sha256
           if-no-files-found: error
           retention-days: 30
