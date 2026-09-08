@@ -60,7 +60,7 @@ jobs:
           test -f "$APP_PATH/WebApp/v11/ocr-ensemble.js"
           test -f "$APP_PATH/WebApp/v11/measurement-engine.js"
           grep -q '11.1.1' "$APP_PATH/WebApp/v11_1/index.html"
-          grep -q '11.1-native-first' "$APP_PATH/WebApp/v11/ocr-ensemble.js"
+          grep -q '11.1-independent-verify' "$APP_PATH/WebApp/v11/ocr-ensemble.js"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")" = "11.1.1"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")" = "3"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" dist/mobile/ios/TabelaAI-ios-simulator-11.1.1.zip
@@ -100,7 +100,7 @@ jobs:
           test -f "$APP_PATH/WebApp/v11/ocr-ensemble.js"
           test -f "$APP_PATH/WebApp/v11/measurement-engine.js"
           grep -q '11.1.1' "$APP_PATH/WebApp/v11_1/index.html"
-          grep -q '11.1-native-first' "$APP_PATH/WebApp/v11/ocr-ensemble.js"
+          grep -q '11.1-independent-verify' "$APP_PATH/WebApp/v11/ocr-ensemble.js"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")" = "11.1.1"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")" = "3"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" dist/mobile/ios/TabelaAI-ios-device-unsigned-11.1.1.zip
