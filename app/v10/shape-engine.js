@@ -16,15 +16,16 @@
     const mean=sum/Math.max(1,n),std=Math.sqrt(Math.max(0,sum2/Math.max(1,n)-mean*mean)),thr=Math.max(105,mean+1.05*std);let edge=new Uint8Array(w*h);for(let i=0;i<edge.length;i++)edge[i]=mag[i]>thr?1:0;edge=dilate(edge,w,h,2);
     const seen=new Uint8Array(w*h),dirs=[-1,1,-w,w,-w-1,-w+1,w-1,w+1];let best=null;
     for(let y=2;y<h-2;y++)for(let xx=2;xx<w-2;xx++){const s=y*w+xx;if(!edge[s]||seen[s])continue;const q=[s];seen[s]=1;let qi=0,count=0,minx=xx,maxx=xx,miny=y,maxy=y;while(qi<q.length){const p=q[qi++],py=Math.floor(p/w),px=p-py*w;count++;minx=Math.min(minx,px);maxx=Math.max(maxx,px);miny=Math.min(miny,py);maxy=Math.max(maxy,py);for(const off of dirs){const np=p+off;if(np<0||np>=edge.length||seen[np]||!edge[np])continue;const ny=Math.floor(np/w),nx=np-ny*w;if(Math.abs(nx-px)>1||Math.abs(ny-py)>1)continue;seen[np]=1;q.push(np)}}const bw=maxx-minx+1,bh=maxy-miny+1;if(count<90||bw<w*.12||bh<h*.10)continue;const area=bw*bh,cx=(minx+maxx)/2,cy=(miny+maxy)/2,center=1-Math.min(1,Math.hypot(cx-w/2,cy-h/2)/Math.hypot(w/2,h/2)),size=Math.min(1,area/(w*h*.5)),score=count*(.55+.45*center)*(1+.38*size);if(!best||score>best.score)best={x:minx,y:miny,w:bw,h:bh,count,score}}
+    const boundaryDetected=!!best;
     if(!best)best={x:Math.round(w*.08),y:Math.round(h*.13),w:Math.round(w*.84),h:Math.round(h*.72),count:0,score:0};
     let b=best,aspect=b.w/b.h,st=shapeStats(edge,w,h,b),sp=rowSpans(edge,w,h,b),type='freeform';const top=Math.max(sp[0],sp[1]),mid=sp[2],bottom=Math.max(sp[3],sp[4]);
     if(Math.min(top,bottom)<Math.max(top,bottom)*.53&&mid>.42)type='triangle';
     else if(st.ellipse>st.rect+.06)type=aspect>.83&&aspect<1.20?'circle':'oval';
     else if(st.rect>.21){type=aspect>.84&&aspect<1.18?'square':aspect>=1.18?'horizontal-rectangle':'vertical-rectangle'}
     else if(aspect>.62&&aspect<1.65)type='polygon';
-    const pad=.035*Math.min(b.w,b.h);b={x:clamp(b.x-pad,0,w-1),y:clamp(b.y-pad,0,h-1),w:clamp(b.w+2*pad,1,w),h:clamp(b.h+2*pad,1,h)};b.w=Math.min(b.w,w-b.x);b.h=Math.min(b.h,h-b.y);
+    const pad=.035*Math.min(b.w,b.h);b={x:clamp(b.x-pad,0,w-1),y:clamp(b.y-pad,0,h-1),w:clamp(b.w+2*pad,1,w),h:clamp(b.h+2*pad,1,w)};b.w=Math.min(b.w,w-b.x);b.h=Math.min(b.h,h-b.y);
     const confidence=Math.round(clamp(48+Math.abs(st.rect-st.ellipse)*62+(best.count?14:0),35,97));
-    return{shapeType:type,shapeLabel:labels[type]||type,confidence,bbox:{x:b.x/scale,y:b.y/scale,w:b.w/scale,h:b.h/scale},debug:{aspect:+aspect.toFixed(2),rect:+st.rect.toFixed(2),ellipse:+st.ellipse.toFixed(2)},version:'10.0'};
+    return{shapeType:type,shapeLabel:labels[type]||type,confidence,boundaryDetected,boundarySource:boundaryDetected?'edge-component':'fallback-box',bbox:{x:b.x/scale,y:b.y/scale,w:b.w/scale,h:b.h/scale},debug:{aspect:+aspect.toFixed(2),rect:+st.rect.toFixed(2),ellipse:+st.ellipse.toFixed(2),componentCount:best.count||0},version:'10.1-field-boundary'};
   }
-  window.TabelaShape={detect,labels,version:'10.0'};
+  window.TabelaShape={detect,labels,version:'10.1-field-boundary'};
 })();
