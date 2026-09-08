@@ -1,6 +1,6 @@
 (() => {
   const $=id=>document.getElementById(id);
-  const state={ocrManual:false,shapeManual:false,wakeLock:null,lastPreflight:null};
+  const state={ocrManual:false,shapeManual:false,wakeLock:null,lastPreflight:null,scanning:false,saving:false,cameraVerified:false};
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   function setScanStatus(message){const el=$('scanStatus');if(el)el.textContent=message}
@@ -35,7 +35,8 @@
   }
 
   async function ensureServiceWorkerControl(){
-    if(window.TabelaNativeBundle||!('serviceWorker' in navigator))return true;
+    if(window.TabelaNativeBundle)return true;
+    if(!('serviceWorker' in navigator))return false;
     try{
       await Promise.race([navigator.serviceWorker.ready,new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),4500))]);
       if(navigator.serviceWorker.controller)return true;
@@ -58,9 +59,34 @@
     return{ok:results.every(x=>x.status==='fulfilled'),failed:results.filter(x=>x.status==='rejected').length};
   }
 
-  async function preflight({warmOCR=false,persist=false}={}){
-    const result={secure:window.isSecureContext,camera:!!navigator.mediaDevices?.getUserMedia,gps:!!navigator.geolocation,gpsFix:gpsReady(),indexedDB:!!window.indexedDB,storage:false,ocr:false,serviceWorker:true,online:navigator.onLine,details:[]};
-    try{const h=await window.TabelaStorage?.health?.();result.storage=!!h?.ok;result.storageHealth=h}catch(error){result.details.push('Depolama: '+(error?.message||error))}
+  async function verifyCameraAccess(){
+    if(!navigator.mediaDevices?.getUserMedia)return false;
+    if(state.cameraVerified)return true;
+    try{
+      const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+      const tracks=s.getVideoTracks();
+      state.cameraVerified=tracks.some(t=>t.readyState==='live');
+      tracks.forEach(t=>t.stop());
+      return state.cameraVerified;
+    }catch(error){
+      state.cameraVerified=false;
+      throw error;
+    }
+  }
+
+  async function preflight({warmOCR=false,persist=false,verifyCamera=false}={}){
+    const cameraAPI=!!navigator.mediaDevices?.getUserMedia;
+    const result={secure:window.isSecureContext,camera:cameraAPI,cameraVerified:state.cameraVerified,gps:!!navigator.geolocation,gpsFix:gpsReady(),indexedDB:!!window.indexedDB,storage:false,storageLow:false,ocr:false,serviceWorker:true,online:navigator.onLine,details:[]};
+    if(verifyCamera&&cameraAPI){
+      try{result.cameraVerified=await verifyCameraAccess()}catch(error){result.cameraVerified=false;result.details.push('Kamera izni/akışı: '+(error?.name||error?.message||error))}
+    }
+    try{
+      const h=await window.TabelaStorage?.health?.();result.storage=!!h?.ok;result.storageHealth=h;
+      if(Number.isFinite(h?.quota)&&Number.isFinite(h?.usage)){
+        const free=h.quota-h.usage;
+        if(free<50*1024*1024){result.storageLow=true;result.details.push('Cihaz tarayıcı depolamasında 50 MB altında boş alan kaldı')}
+      }
+    }catch(error){result.details.push('Depolama: '+(error?.message||error))}
     result.serviceWorker=await ensureServiceWorkerControl();
     if(!result.serviceWorker)result.details.push('Offline motoru sayfayı henüz kontrol etmiyor; sayfayı bir kez yenileyip tekrar hazırlayın');
     if(warmOCR&&result.serviceWorker){
@@ -81,7 +107,8 @@
       try{result.persistence=await window.TabelaStorage?.requestPersistentStorage?.()}catch(error){result.details.push('Kalıcı depolama: '+(error?.message||error))}
     }
     const previouslyPrepared=!!localStorage.getItem('tabela_ai_v11_1_field_ready_at');
-    result.ready=!!(result.secure&&result.camera&&result.gps&&result.gpsFix&&result.indexedDB&&result.storage&&result.ocr&&result.serviceWorker&&(warmOCR||nativeOCR||previouslyPrepared));
+    const cameraReady=verifyCamera?result.cameraVerified:(result.cameraVerified||previouslyPrepared);
+    result.ready=!!(result.secure&&cameraAPI&&cameraReady&&result.gps&&result.gpsFix&&result.indexedDB&&result.storage&&!result.storageLow&&result.ocr&&result.serviceWorker&&(warmOCR||nativeOCR||previouslyPrepared));
     result.at=new Date().toISOString();
     state.lastPreflight=result;
     if(result.ready)localStorage.setItem('tabela_ai_v11_1_field_ready_at',result.at);
@@ -93,17 +120,17 @@
     if(!badge||!detail)return;
     badge.textContent=result.ready?'SAHA HAZIR':'SAHA KONTROL GEREKLİ';
     badge.className='badge '+(result.ready?'ok':'warn');
-    const checks=[['HTTPS',result.secure],['Kamera',result.camera],['GPS API',result.gps],['GPS fix',result.gpsFix],['IndexedDB',result.indexedDB],['Depolama',result.storage],['OCR',result.ocr],['Offline',result.serviceWorker]];
+    const checks=[['HTTPS',result.secure],['Kamera',result.cameraVerified||false],['GPS API',result.gps],['GPS fix',result.gpsFix],['IndexedDB',result.indexedDB],['Depolama',result.storage&&!result.storageLow],['OCR',result.ocr],['Offline',result.serviceWorker]];
     detail.innerHTML=checks.map(([name,ok])=>`${esc(name)}: <b>${ok?'✓':'✗'}</b>`).join(' • ')+(result.details.length?'<br>'+result.details.map(esc).join(' • '):'');
   }
 
   async function runFieldPrepare(){
     const btn=$('fieldPrepareBtn');
     if(btn){btn.disabled=true;btn.textContent='Hazırlanıyor…'}
-    const r=await preflight({warmOCR:true,persist:true});
+    const r=await preflight({warmOCR:true,persist:true,verifyCamera:true});
     renderPreflight(r);
     if(btn){btn.disabled=false;btn.textContent=r.ready?'✓ Saha paketi hazır':'↻ Saha kontrolünü tekrar çalıştır'}
-    setScanStatus(r.ready?'Saha ön kontrolü tamam. Kamera API, GPS fix, OCR, offline cache ve yerel kayıt hazır.':'Saha ön kontrolünde eksik var. Üstteki kontrol satırını düzeltmeden çekime başlamayın.');
+    setScanStatus(r.ready?'Saha ön kontrolü tamam. Kamera, GPS fix, OCR, offline cache ve yerel kayıt hazır.':'Saha ön kontrolünde eksik var. Üstteki kontrol satırını düzeltmeden çekime başlamayın.');
   }
 
   function mountPreflight(){
@@ -165,7 +192,13 @@
     const wrapped=async(record,photoData)=>{
       if(!record?.id)throw new Error('Kayıt kimliği yok');
       if(!Number.isFinite(record.gps?.lat)||!Number.isFinite(record.gps?.lng))throw new Error('GPS konumu alınmadan kayıt yapılamaz');
+      if(!Number.isFinite(Number(record.gps?.accuracy))||Number(record.gps.accuracy)>50)throw new Error('GPS doğruluğu 50 m sınırının dışında; kayıt durduruldu');
+      const gpsAt=Date.parse(record.gps?.at||'');
+      if(!Number.isFinite(gpsAt)||Date.now()-gpsAt>60000)throw new Error('GPS konumu güncel değil; yeni konum bekleniyor');
       if(!photoData)throw new Error('Ana saha fotoğrafı yok; kayıt durduruldu');
+      if(Number(record.qualityScore)<62)throw new Error('Çekim kalite kapısı geçilmeden kayıt yapılamaz');
+      if(!String(record.ocr||'').trim())throw new Error('Tabela yazısı boş; OCR sonucunu kontrol edin veya manuel girin');
+      if(!String(record.shapeType||'').trim())throw new Error('Tabela şekli seçilmeden kayıt yapılamaz');
 
       const ocr=$('ocr');
       if(state.ocrManual||ocr?.dataset.operatorEdited==='1'){
@@ -201,10 +234,23 @@
     const video=$('video'),snap=$('snapBtn'),start=$('startCam'),save=$('saveBtn'),ocr=$('ocr'),shape=$('shapeSelect'),signType=$('signType'),retry=$('retryBtn'),measure=$('measureBtn');
 
     snap?.addEventListener('click',event=>{
+      if(state.scanning){stopEvent(event);setScanStatus('Tarama zaten devam ediyor. Sonucun tamamlanmasını bekleyin.');return}
       if(!video?.videoWidth||!video?.videoHeight||video.readyState<2){stopEvent(event);setScanStatus('Kamera görüntüsü henüz hazır değil. 1–2 saniye bekleyip tekrar deneyin.');return}
       if(!gpsReady()){stopEvent(event);setScanStatus('GPS henüz alınmadı. Konum rozeti GPS ±… m olunca taramayı başlatın.');return}
       state.ocrManual=false;state.shapeManual=false;if(ocr)ocr.dataset.operatorEdited='0';if(shape)shape.dataset.operatorEdited='0';
     },true);
+
+    if(snap?.onclick){
+      const original=snap.onclick;
+      snap.onclick=async event=>{
+        if(state.scanning)return;
+        state.scanning=true;snap.disabled=true;
+        try{await original.call(snap,event)}catch(error){
+          setScanStatus(error?.message||'Tarama tamamlanamadı. Yeniden deneyin.');
+          $('retryBtn')?.classList.remove('hidden');
+        }finally{state.scanning=false}
+      };
+    }
 
     if(start?.onclick){
       const original=start.onclick;
@@ -212,14 +258,27 @@
         if(snap)snap.disabled=true;
         await original.call(start,event);
         const ready=await waitForVideo(video,5000);
-        if(ready){if(snap)snap.disabled=false;await requestWakeLock();setScanStatus('Kamera hazır. GPS rozeti de hazırsa 5 kare taramayı başlatın.')}else{if(snap)snap.disabled=true;setScanStatus('Kamera izin aldı fakat görüntü akışı başlamadı. Tarayıcıyı yenileyip tekrar deneyin.')}
+        if(ready){state.cameraVerified=true;if(snap)snap.disabled=false;await requestWakeLock();setScanStatus('Kamera hazır. GPS rozeti de hazırsa 5 kare taramayı başlatın.')}else{if(snap)snap.disabled=true;setScanStatus('Kamera izin aldı fakat görüntü akışı başlamadı. Tarayıcıyı yenileyip tekrar deneyin.')}
       };
     }
 
     save?.addEventListener('click',event=>{
+      if(state.saving){stopEvent(event);return}
       if(!gpsReady()){stopEvent(event);setScanStatus('GPS konumu alınmadan kayıt yapılmadı. GPS rozeti hazır olunca tekrar Kaydet seçin.');return}
       const acc=gpsAccuracy();if(Number.isFinite(acc)&&acc>50){stopEvent(event);setScanStatus('GPS doğruluğu ±'+acc+' m. Daha açık bir noktada birkaç saniye bekleyin; 50 m altına inmeden kayıt yapılmadı.');return}
     },true);
+
+    if(save?.onclick){
+      const original=save.onclick;
+      save.onclick=async event=>{
+        if(state.saving)return;
+        state.saving=true;save.disabled=true;
+        try{await original.call(save,event)}catch(error){
+          setScanStatus('Kayıt yapılmadı: '+(error?.message||error));
+          save.disabled=false;
+        }finally{state.saving=false}
+      };
+    }
 
     ocr?.addEventListener('input',()=>{
       state.ocrManual=true;ocr.dataset.operatorEdited='1';
@@ -227,7 +286,7 @@
     });
     shape?.addEventListener('change',()=>{state.shapeManual=true;shape.dataset.operatorEdited='1'});
     signType?.addEventListener('change',()=>{const box=$('dupBox');if(box&&!box.classList.contains('hidden'))box.insertAdjacentHTML('beforeend','<div class="muted">Tabela türü değişti; kayıt anında tekrar kontrolü yeniden yapılacaktır.</div>')});
-    retry?.addEventListener('click',()=>{state.ocrManual=false;state.shapeManual=false;if(ocr)ocr.dataset.operatorEdited='0';if(shape)shape.dataset.operatorEdited='0'},true);
+    retry?.addEventListener('click',()=>{state.ocrManual=false;state.shapeManual=false;state.scanning=false;if(ocr)ocr.dataset.operatorEdited='0';if(shape)shape.dataset.operatorEdited='0';if(snap)snap.disabled=false},true);
 
     const cap=window.TabelaMetric?.capability?.();
     if(measure&&cap&&!cap.available){measure.disabled=true;measure.textContent='📐 Web sürümü • native 3D ölçüm yok';const s=$('st6');if(s)s.textContent='Web modunda ölçüm yok • kayıt ölçümsüz yapılabilir'}
