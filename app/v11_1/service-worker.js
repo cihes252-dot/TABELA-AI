@@ -1,4 +1,4 @@
-const CACHE='tabela-ai-v11-1-11.1.2';
+const CACHE='tabela-ai-v11-1-11.1.2-fix1';
 const CORE=[
   './','./index.html','./manifest.webmanifest','./resilience.js',
   '../v11/index.html','../v11/quality-engine.js','../v11/multiframe-engine.js','../v11/segmentation-engine.js',
