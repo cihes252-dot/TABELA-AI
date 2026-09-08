@@ -3,7 +3,7 @@ import WebKit
 import ARKit
 import AVFoundation
 
-/// Native iOS host for TABELA AI 11.1.
+/// Native iOS host for TABELA AI 11.2.
 /// Supports three truthful device tiers:
 /// - LiDAR / Scene Depth + ARKit
 /// - ARKit world tracking without LiDAR
@@ -12,7 +12,7 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
     private static let trustedHost = "cihes252-dot.github.io"
     private static let trustedPathPrefix = "/TABELA-AI/"
     private static var appVersion: String {
-        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "11.1.2"
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "11.2.2"
     }
 
     private let arView = ARSCNView(frame: .zero)
@@ -25,6 +25,7 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
     private let cancelButton = UIButton(type: .system)
     private var loadedBundledUI = false
     private var remoteFallbackUsed = false
+    private var automaticMeasurementActive = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -102,7 +103,7 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
         info.textColor = .white
         info.backgroundColor = UIColor.black.withAlphaComponent(0.78)
         info.textAlignment = .center
-        info.numberOfLines = 4
+        info.numberOfLines = 5
         info.layer.cornerRadius = 12
         info.clipsToBounds = true
         arView.addSubview(info)
@@ -135,7 +136,7 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
             info.leadingAnchor.constraint(equalTo: arView.leadingAnchor, constant: 18),
             info.trailingAnchor.constraint(equalTo: arView.trailingAnchor, constant: -18),
             info.bottomAnchor.constraint(equalTo: arView.safeAreaLayoutGuide.bottomAnchor, constant: -18),
-            info.heightAnchor.constraint(greaterThanOrEqualToConstant: 88)
+            info.heightAnchor.constraint(greaterThanOrEqualToConstant: 96)
         ])
     }
 
@@ -161,7 +162,7 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
 
     private func loadCurrentApp() {
         if let root = bundledWebRoot {
-            let index = root.appendingPathComponent("v11_1/index.html", isDirectory: false)
+            let index = root.appendingPathComponent("v11_2/index.html", isDirectory: false)
             if FileManager.default.fileExists(atPath: index.path) {
                 var parts = URLComponents(url: index, resolvingAgainstBaseURL: false)
                 parts?.queryItems = [
@@ -182,7 +183,7 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
         guard !remoteFallbackUsed else { return }
         remoteFallbackUsed = true
         loadedBundledUI = false
-        guard let url = URL(string: "https://cihes252-dot.github.io/TABELA-AI/app/v11_1/?native=ios&build=\(Self.appVersion)") else { return }
+        guard let url = URL(string: "https://cihes252-dot.github.io/TABELA-AI/app/v11_2/?native=ios&build=\(Self.appVersion)&fast=1") else { return }
         webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30))
     }
 
@@ -263,6 +264,7 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
             return
         }
 
+        automaticMeasurementActive = false
         stopWebCameraForNativeAR { [weak self] in
             guard let self else { return }
             let configuration = ARWorldTrackingConfiguration()
@@ -271,6 +273,32 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
             self.arView.isHidden = false
             self.webView.isHidden = true
             self.updateControlsAndInfo()
+            if self.bridge.canAttemptAutomaticMeasurement {
+                self.automaticMeasurementActive = true
+                self.info.text = "AUTO GERÇEK 3B ÖLÇÜM\nTabela sınırı ARKit/LiDAR yüzeyine bağlanıyor…\nKalite geçmezse manuel nokta moduna düşer."
+                self.attemptAutomaticMeasurement(remaining: 8)
+            }
+        }
+    }
+
+    private func attemptAutomaticMeasurement(remaining: Int) {
+        guard automaticMeasurementActive, !arView.isHidden else { return }
+        if bridge.collectAutomaticBoundaryPoints() {
+            automaticMeasurementActive = false
+            finishCurrentMeasurement()
+            return
+        }
+        guard remaining > 0 else {
+            automaticMeasurementActive = false
+            let reason = bridge.lastErrorMessage.isEmpty ? "Sensör/plane kalite kapısı geçilmedi." : bridge.lastErrorMessage
+            updateControlsAndInfo()
+            info.text = "Otomatik 3B sınır doğrulanamadı.\n\(reason)\nGerçek ölçüm için ekrandaki noktaları manuel seçin."
+            return
+        }
+        let done = 9 - remaining
+        info.text = "AUTO GERÇEK 3B ÖLÇÜM\nARKit yüzeyi sabitleniyor • deneme \(max(1, done))/8\nTelefonu çok az ve yavaş hareket ettirin."
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { [weak self] in
+            self?.attemptAutomaticMeasurement(remaining: remaining - 1)
         }
     }
 
@@ -279,11 +307,12 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
         (()=>{try{document.querySelectorAll('video').forEach(v=>{const s=v.srcObject;if(s&&s.getTracks)s.getTracks().forEach(t=>t.stop());});window.dispatchEvent(new CustomEvent('tabela:native-ar-start'));}catch(e){}})();
         """
         webView.evaluateJavaScript(script) { _, _ in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: completion)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.10, execute: completion)
         }
     }
 
     @objc private func arTapped(_ gesture: UITapGestureRecognizer) {
+        guard !automaticMeasurementActive else { return }
         let point = gesture.location(in: arView)
         guard bridge.addPoint(screenPoint: point) else {
             info.text = bridge.lastErrorMessage.isEmpty ? "Bu noktada güvenilir 3B yüzey bulunamadı." : bridge.lastErrorMessage
@@ -297,11 +326,13 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
     }
 
     @objc private func undoPoint() {
+        guard !automaticMeasurementActive else { return }
         bridge.undoLastPoint()
         updateControlsAndInfo()
     }
 
     @objc private func finishDynamicMeasurement() {
+        guard !automaticMeasurementActive else { return }
         guard bridge.isDynamicShape, bridge.canFinish else {
             info.text = "Çokgen/serbest form için en az 3 çevre noktası gerekli."
             return
@@ -310,11 +341,13 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
     }
 
     @objc private func cancelMeasurement() {
+        automaticMeasurementActive = false
         bridge.cancel()
         returnToWeb()
     }
 
     private func finishCurrentMeasurement() {
+        automaticMeasurementActive = false
         if bridge.finishMeasurement() {
             returnToWeb()
         } else {
@@ -324,6 +357,7 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
     }
 
     private func returnToWeb() {
+        automaticMeasurementActive = false
         arView.session.pause()
         arView.isHidden = true
         webView.isHidden = false
@@ -331,9 +365,9 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
     }
 
     private func updateControlsAndInfo(preserveMessage: Bool = false) {
-        undoButton.isEnabled = bridge.pointCount > 0
+        undoButton.isEnabled = bridge.pointCount > 0 && !automaticMeasurementActive
         finishButton.isHidden = !bridge.isDynamicShape
-        finishButton.isEnabled = bridge.isDynamicShape && bridge.canFinish
+        finishButton.isEnabled = bridge.isDynamicShape && bridge.canFinish && !automaticMeasurementActive
         guard !preserveMessage else { return }
 
         let caps = TabelaLiDAREngine.capabilities()
@@ -342,7 +376,9 @@ final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigati
         else if caps.mesh { mode = "LiDAR mesh + ARKit" }
         else { mode = "ARKit algılanmış düzlem" }
 
-        if bridge.isDynamicShape {
+        if automaticMeasurementActive {
+            info.text = "AUTO GERÇEK 3B ÖLÇÜM • \(mode)\nTabela sınırı sensör yüzeyine bağlanıyor…"
+        } else if bridge.isDynamicShape {
             info.text = "Gerçek ölçüm • \(mode)\n\(bridge.nextPrompt()) noktasına çevre sırasıyla dokunun\n\(bridge.pointCount)/24 • En az 3 noktadan sonra Bitir"
         } else if let required = bridge.requiredPointCount {
             info.text = "Gerçek ölçüm • \(mode)\n\(bridge.nextPrompt()) noktasına dokunun\n\(bridge.pointCount)/\(required) • Kalite düşükse nokta kabul edilmez"
