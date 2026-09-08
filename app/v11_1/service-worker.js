@@ -28,7 +28,7 @@ self.addEventListener('fetch',event=>{
   if(url.origin!==self.location.origin){
     event.respondWith(
       caches.match(event.request).then(hit=>hit||fetch(event.request).then(response=>{
-        if(response&&response.ok){
+        if(response&&(response.ok||response.type==='opaque')){
           caches.open(CACHE).then(cache=>cache.put(event.request,response.clone())).catch(()=>{});
         }
         return response;
