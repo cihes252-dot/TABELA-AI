@@ -54,4 +54,5 @@ jobs:
           grep -q "app/v11_1" index.html
           grep -q '11.1.1' app/v11_1/manifest.webmanifest
           grep -q "tabela-ai-v11-1-11.1.1" app/v11_1/service-worker.js
-          grep -q "11.1-native-first" app/v11/ocr-ensemble.js
+          grep -q "11.1-independent-verify" app/v11/ocr-ensemble.js
+          grep -q "native+web-independent" app/v11/ocr-ensemble.js
