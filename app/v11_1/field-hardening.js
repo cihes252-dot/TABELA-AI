@@ -35,7 +35,7 @@
   }
 
   async function preflight({warmOCR=false,persist=false}={}){
-    const result={secure:window.isSecureContext,camera:!!navigator.mediaDevices?.getUserMedia,gps:!!navigator.geolocation,indexedDB:!!window.indexedDB,storage:false,ocr:false,serviceWorker:true,online:navigator.onLine,details:[]};
+    const result={secure:window.isSecureContext,camera:!!navigator.mediaDevices?.getUserMedia,gps:!!navigator.geolocation,gpsFix:gpsReady(),indexedDB:!!window.indexedDB,storage:false,ocr:false,serviceWorker:true,online:navigator.onLine,details:[]};
     try{const h=await window.TabelaStorage?.health?.();result.storage=!!h?.ok;result.storageHealth=h}catch(error){result.details.push('Depolama: '+(error?.message||error))}
     if(!window.TabelaNativeBundle&&'serviceWorker' in navigator){
       try{await Promise.race([navigator.serviceWorker.ready,new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),4000))]);result.serviceWorker=true}catch{result.serviceWorker=false;result.details.push('Offline motoru henüz hazır değil')}
@@ -53,7 +53,8 @@
     if(persist){
       try{result.persistence=await window.TabelaStorage?.requestPersistentStorage?.()}catch(error){result.details.push('Kalıcı depolama: '+(error?.message||error))}
     }
-    result.ready=!!(result.secure&&result.camera&&result.gps&&result.indexedDB&&result.storage&&result.ocr);
+    const previouslyPrepared=!!localStorage.getItem('tabela_ai_v11_1_field_ready_at');
+    result.ready=!!(result.secure&&result.camera&&result.gps&&result.gpsFix&&result.indexedDB&&result.storage&&result.ocr&&result.serviceWorker&&(warmOCR||nativeOCR||previouslyPrepared));
     result.at=new Date().toISOString();
     state.lastPreflight=result;
     if(result.ready)localStorage.setItem('tabela_ai_v11_1_field_ready_at',result.at);
@@ -65,7 +66,7 @@
     if(!badge||!detail)return;
     badge.textContent=result.ready?'SAHA HAZIR':'SAHA KONTROL GEREKLİ';
     badge.className='badge '+(result.ready?'ok':'warn');
-    const checks=[['HTTPS',result.secure],['Kamera',result.camera],['GPS',result.gps],['IndexedDB',result.indexedDB],['Depolama',result.storage],['OCR',result.ocr],['Offline',result.serviceWorker]];
+    const checks=[['HTTPS',result.secure],['Kamera',result.camera],['GPS API',result.gps],['GPS fix',result.gpsFix],['IndexedDB',result.indexedDB],['Depolama',result.storage],['OCR',result.ocr],['Offline',result.serviceWorker]];
     detail.innerHTML=checks.map(([name,ok])=>`${esc(name)}: <b>${ok?'✓':'✗'}</b>`).join(' • ')+(result.details.length?'<br>'+result.details.map(esc).join(' • '):'');
   }
 
@@ -75,7 +76,7 @@
     const r=await preflight({warmOCR:true,persist:true});
     renderPreflight(r);
     if(btn){btn.disabled=false;btn.textContent=r.ready?'✓ Saha paketi hazır':'↻ Saha kontrolünü tekrar çalıştır'}
-    setScanStatus(r.ready?'Saha ön kontrolü tamam. Kamera, GPS, OCR ve yerel kayıt hazır.':'Saha ön kontrolünde eksik var. Üstteki kontrol satırını düzeltmeden çekime başlamayın.');
+    setScanStatus(r.ready?'Saha ön kontrolü tamam. Kamera API, GPS fix, OCR ve yerel kayıt hazır.':'Saha ön kontrolünde eksik var. Üstteki kontrol satırını düzeltmeden çekime başlamayın.');
   }
 
   function mountPreflight(){
@@ -109,6 +110,19 @@
     const b=document.createElement('button');b.id='photoBackupBtn';b.textContent='📷 Fotoğraflı yedek';
     b.onclick=async()=>{b.disabled=true;b.textContent='Yedek hazırlanıyor…';try{await exportPhotoBackup();b.textContent='✓ Fotoğraflı yedek indirildi'}catch(error){b.textContent='Yedek hatası';setScanStatus('Fotoğraflı yedek oluşturulamadı: '+(error?.message||error))}finally{setTimeout(()=>{b.disabled=false;b.textContent='📷 Fotoğraflı yedek'},1600)}};
     row.appendChild(b);
+  }
+
+  function patchSegmentation(){
+    const seg=window.TabelaSegmentation;if(!seg?.detect||seg.detect.__fieldHardened)return;
+    const original=seg.detect.bind(seg);
+    const wrapped=async data=>{
+      const result=await original(data);
+      if(result?.mode!=='trained-model'&&result?.boundaryDetected===false){
+        throw new Error('Tabela sınırı güvenilir şekilde bulunamadı. Tabelaya yaklaşın ve yeniden çekin.');
+      }
+      return result;
+    };
+    wrapped.__fieldHardened=true;seg.detect=wrapped;
   }
 
   function patchStorageAdd(){
@@ -186,7 +200,7 @@
   }
 
   function init(){
-    mountPreflight();mountPhotoBackup();patchStorageAdd();installGuards();
+    mountPreflight();mountPhotoBackup();patchSegmentation();patchStorageAdd();installGuards();
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!state.wakeLock)requestWakeLock()});
   }
 
