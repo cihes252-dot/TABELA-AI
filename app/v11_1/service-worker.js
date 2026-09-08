@@ -1,6 +1,6 @@
-const CACHE='tabela-ai-v11-1-11.1.2-fix1';
+const CACHE='tabela-ai-v11-1-11.1.2';
 const CORE=[
-  './','./index.html','./manifest.webmanifest','./resilience.js',
+  './','./index.html','./manifest.webmanifest','./resilience.js','./field-hardening.js',
   '../v11/index.html','../v11/quality-engine.js','../v11/multiframe-engine.js','../v11/segmentation-engine.js',
   '../v11/perspective-engine.js','../v11/ocr-ensemble.js','../v11/fingerprint-engine.js','../v11/duplicate-engine.js',
   '../v11/orientation-engine.js','../v11/address-engine.js','../v11/material-engine.js','../v11/measurement-engine.js',
