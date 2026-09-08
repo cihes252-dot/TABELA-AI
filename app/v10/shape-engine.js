@@ -23,7 +23,7 @@
     else if(st.ellipse>st.rect+.06)type=aspect>.83&&aspect<1.20?'circle':'oval';
     else if(st.rect>.21){type=aspect>.84&&aspect<1.18?'square':aspect>=1.18?'horizontal-rectangle':'vertical-rectangle'}
     else if(aspect>.62&&aspect<1.65)type='polygon';
-    const pad=.035*Math.min(b.w,b.h);b={x:clamp(b.x-pad,0,w-1),y:clamp(b.y-pad,0,h-1),w:clamp(b.w+2*pad,1,w),h:clamp(b.h+2*pad,1,w)};b.w=Math.min(b.w,w-b.x);b.h=Math.min(b.h,h-b.y);
+    const pad=.035*Math.min(b.w,b.h);b={x:clamp(b.x-pad,0,w-1),y:clamp(b.y-pad,0,h-1),w:clamp(b.w+2*pad,1,w),h:clamp(b.h+2*pad,1,h)};b.w=Math.min(b.w,w-b.x);b.h=Math.min(b.h,h-b.y);
     const confidence=Math.round(clamp(48+Math.abs(st.rect-st.ellipse)*62+(best.count?14:0),35,97));
     return{shapeType:type,shapeLabel:labels[type]||type,confidence,boundaryDetected,boundarySource:boundaryDetected?'edge-component':'fallback-box',bbox:{x:b.x/scale,y:b.y/scale,w:b.w/scale,h:b.h/scale},debug:{aspect:+aspect.toFixed(2),rect:+st.rect.toFixed(2),ellipse:+st.ellipse.toFixed(2),componentCount:best.count||0},version:'10.1-field-boundary'};
   }
