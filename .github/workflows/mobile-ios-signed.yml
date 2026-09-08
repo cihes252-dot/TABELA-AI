@@ -36,6 +36,8 @@ jobs:
 
           printf '%s' "$IOS_CERTIFICATE_P12_BASE64" | base64 -D > "$CERT_PATH"
           printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -D > "$PROFILE_PATH"
+          test -s "$CERT_PATH"
+          test -s "$PROFILE_PATH"
 
           security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
@@ -88,12 +90,16 @@ jobs:
           APP="$RUNNER_TEMP/TabelaAI.xcarchive/Products/Applications/TabelaAI.app"
           test -d "$APP"
           test -f "$APP/WebApp/v11_1/index.html"
+          test -f "$APP/WebApp/v11_1/resilience.js"
           test -f "$APP/WebApp/v11/ocr-ensemble.js"
+          test -f "$APP/WebApp/v11/storage-engine.js"
           test -f "$APP/WebApp/v11/measurement-engine.js"
-          grep -q '11.1.1' "$APP/WebApp/v11_1/index.html"
+          grep -q '11.1.2' "$APP/WebApp/v11_1/index.html"
+          grep -q '11.1.2-resilient-ocr' "$APP/WebApp/v11/ocr-ensemble.js"
+          grep -q '11.1.2-indexeddb-atomic' "$APP/WebApp/v11/storage-engine.js"
           codesign --verify --deep --strict --verbose=2 "$APP"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")" = "11.1.1"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = "3"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")" = "11.1.2"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = "4"
 
       - name: Export IPA
         shell: bash
@@ -133,16 +139,16 @@ jobs:
 
           IPA="$(find dist/mobile/ios-signed -maxdepth 1 -name '*.ipa' -print -quit)"
           test -n "$IPA"
-          mv "$IPA" dist/mobile/ios-signed/TabelaAI-iPhone-11.1.1.ipa
-          (cd dist/mobile/ios-signed && shasum -a 256 TabelaAI-iPhone-11.1.1.ipa > TabelaAI-iPhone-11.1.1.sha256)
-          (cd dist/mobile/ios-signed && shasum -a 256 -c TabelaAI-iPhone-11.1.1.sha256)
+          mv "$IPA" dist/mobile/ios-signed/TabelaAI-iPhone-11.1.2.ipa
+          (cd dist/mobile/ios-signed && shasum -a 256 TabelaAI-iPhone-11.1.2.ipa > TabelaAI-iPhone-11.1.2.sha256)
+          (cd dist/mobile/ios-signed && shasum -a 256 -c TabelaAI-iPhone-11.1.2.sha256)
 
       - name: Upload signed IPA
         uses: actions/upload-artifact@v4
         with:
-          name: tabela-ai-ios-signed-11-1-1
+          name: tabela-ai-ios-signed-11-1-2
           path: |
-            dist/mobile/ios-signed/TabelaAI-iPhone-11.1.1.ipa
-            dist/mobile/ios-signed/TabelaAI-iPhone-11.1.1.sha256
+            dist/mobile/ios-signed/TabelaAI-iPhone-11.1.2.ipa
+            dist/mobile/ios-signed/TabelaAI-iPhone-11.1.2.sha256
           if-no-files-found: error
           retention-days: 30
