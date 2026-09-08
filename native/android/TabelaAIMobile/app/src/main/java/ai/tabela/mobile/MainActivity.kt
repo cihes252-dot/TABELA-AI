@@ -29,9 +29,12 @@ class MainActivity : AppCompatActivity() {
         private const val REMOTE_PATH_PREFIX = "/TABELA-AI/"
         private const val LOCAL_HOST = "appassets.androidplatform.net"
         private const val LOCAL_PATH_PREFIX = "/assets/"
-        private const val LOCAL_APP_URL = "https://appassets.androidplatform.net/assets/v11_1/index.html?native=android&bundle=1&build=11.1.1"
-        private const val REMOTE_APP_URL = "https://cihes252-dot.github.io/TABELA-AI/app/v11_1/?native=android&build=11.1.1"
     }
+
+    private val localAppUrl: String
+        get() = "https://appassets.androidplatform.net/assets/v11_1/index.html?native=android&bundle=1&build=${BuildConfig.VERSION_NAME}"
+    private val remoteAppUrl: String
+        get() = "https://cihes252-dot.github.io/TABELA-AI/app/v11_1/?native=android&build=${BuildConfig.VERSION_NAME}"
 
     private lateinit var webView: WebView
     private lateinit var ocrBridge: TabelaNativeOCRBridge
@@ -99,7 +102,7 @@ class MainActivity : AppCompatActivity() {
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             cacheMode = WebSettings.LOAD_DEFAULT
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) safeBrowsingEnabled = true
-            userAgentString = "$userAgentString TabelaAIAndroid/11.1.1"
+            userAgentString = "$userAgentString TabelaAIAndroid/${BuildConfig.VERSION_NAME}"
         }
 
         webView.webViewClient = object : WebViewClient() {
@@ -135,7 +138,7 @@ class MainActivity : AppCompatActivity() {
                 super.onReceivedError(view, request, error)
                 if (request.isForMainFrame && request.url.host == LOCAL_HOST && !remoteFallbackUsed) {
                     remoteFallbackUsed = true
-                    view.loadUrl(REMOTE_APP_URL)
+                    view.loadUrl(remoteAppUrl)
                 }
             }
         }
@@ -180,7 +183,7 @@ class MainActivity : AppCompatActivity() {
         ocrBridge = TabelaNativeOCRBridge(this, webView)
         webView.addJavascriptInterface(ocrBridge, "TabelaAndroidOCR")
 
-        webView.loadUrl(LOCAL_APP_URL)
+        webView.loadUrl(localAppUrl)
     }
 
     private fun requestNativeMeasurement(payload: String) {
@@ -229,9 +232,10 @@ class MainActivity : AppCompatActivity() {
         val coarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val status = JSONObject.quote(availability?.name ?: "UNKNOWN")
         val localBundle = webView.url?.let { Uri.parse(it).host == LOCAL_HOST } == true
+        val appVersion = JSONObject.quote(BuildConfig.VERSION_NAME)
         val js = """
             window.TabelaNativeCapabilities = Object.assign({}, window.TabelaNativeCapabilities || {}, {
-              platform:'android', app:true, appVersion:'11.1.1', nativeOCR:'mlkit',
+              platform:'android', app:true, appVersion:$appVersion, nativeOCR:'mlkit',
               arcore:$arcoreJs, arcoreInstalled:${if (installed) "true" else "false"},
               arcoreStatus:$status, arcoreDepth:(window.TabelaNativeCapabilities&&window.TabelaNativeCapabilities.arcoreDepth)||null,
               lidar:false, cameraPermission:${if (cameraGranted) "true" else "false"},
@@ -269,7 +273,6 @@ class MainActivity : AppCompatActivity() {
             val fineMissing = ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
             val coarseMissing = ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
             if (fineMissing || coarseMissing) {
-                // Android 12+ expects coarse + fine to be requested together; older Android safely accepts both too.
                 add(Manifest.permission.ACCESS_COARSE_LOCATION)
                 add(Manifest.permission.ACCESS_FINE_LOCATION)
             }
