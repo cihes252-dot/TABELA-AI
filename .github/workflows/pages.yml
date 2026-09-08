@@ -28,24 +28,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for f in app/v11/measurement-engine.js app/v11/quality-engine.js app/v11/multiframe-engine.js app/v11/segmentation-engine.js app/v11/perspective-engine.js app/v11/ocr-ensemble.js app/v11/fingerprint-engine.js app/v11/duplicate-engine.js app/v11/orientation-engine.js app/v11/address-engine.js app/v11/material-engine.js app/v11/storage-engine.js app/v11_1/resilience.js app/v11_1/field-hardening.js app/v11_2/sign-taxonomy.js app/v11_2/fast-ocr-engine.js app/v11_2/fast-field.js app/v11_2/service-worker.js app/v10/shape-engine.js app/v10/ocr-engine.js; do node --check "$f"; done
+          for f in app/v11/measurement-engine.js app/v11/quality-engine.js app/v11/multiframe-engine.js app/v11/segmentation-engine.js app/v11/perspective-engine.js app/v11/ocr-ensemble.js app/v11/fingerprint-engine.js app/v11/duplicate-engine.js app/v11/orientation-engine.js app/v11/address-engine.js app/v11/material-engine.js app/v11/storage-engine.js app/v11_1/resilience.js app/v11_1/field-hardening.js app/v11_2/sign-taxonomy.js app/v11_2/fast-ocr-engine.js app/v11_2/webxr-measurement.js app/v11_2/fast-field.js app/v11_2/service-worker.js app/v10/shape-engine.js app/v10/ocr-engine.js; do node --check "$f"; done
       - name: Run measurement trust smoke tests
         run: node tests/web-measurement-smoke.mjs
       - name: Run V11.1 loader smoke test
         run: node tests/web-loader-smoke.mjs
       - name: Run V11.2 FAST FIELD smoke test
         run: node tests/web-fast-field-smoke.mjs
-      - name: Verify V11.2.4 FAST FIELD release contract
+      - name: Run WebXR 3D measurement smoke test
+        run: node tests/web-webxr-smoke.mjs
+      - name: Verify V11.2.5 FAST FIELD release contract
         shell: bash
         run: |
           set -euo pipefail
           grep -q 'app/v11_2' index.html
-          grep -q 'FAST FIELD 11.2.4' app/v11_2/index.html
-          grep -Fq "serviceWorker.register('./service-worker.js?b=11.2.4'" app/v11_2/index.html
-          grep -q 'fast-field.js?b=11.2.4' app/v11_2/index.html
-          grep -q 'fast-ocr-engine.js?b=11.2.4' app/v11_2/index.html
-          grep -q 'sign-taxonomy.js?b=11.2.4' app/v11_2/index.html
-          grep -q 'tabela-ai-v11-2-11.2.4-auto-predetect' app/v11_2/service-worker.js
+          grep -q '11.2.5' index.html
+          grep -q 'FAST FIELD 11.2.5' app/v11_2/index.html
+          grep -Fq "serviceWorker.register('./service-worker.js?b=11.2.5'" app/v11_2/index.html
+          grep -q 'fast-field.js?b=11.2.5' app/v11_2/index.html
+          grep -q 'fast-ocr-engine.js?b=11.2.5' app/v11_2/index.html
+          grep -q 'sign-taxonomy.js?b=11.2.5' app/v11_2/index.html
+          grep -q 'webxr-measurement.js?b=11.2.5' app/v11_2/index.html
+          grep -q 'tabela-ai-v11-2-11.2.5-webxr-bridge' app/v11_2/service-worker.js
           grep -q 'TARGET_MS=3000' app/v11_2/fast-ocr-engine.js
           grep -q 'singlePass:true' app/v11_2/fast-ocr-engine.js
           grep -q 'tur+eng' app/v11_2/fast-ocr-engine.js
@@ -53,6 +57,9 @@ jobs:
           grep -q 'OTOMATİK TESPİT' app/v11_2/fast-field.js
           grep -q 'Fotoğraf Çek + OCR' app/v11_2/fast-field.js
           grep -q 'preCapture:true' app/v11_2/fast-field.js
+          grep -q "requestSession('immersive-ar'" app/v11_2/webxr-measurement.js
+          grep -q "'depth-sensing'" app/v11_2/webxr-measurement.js
+          grep -q 'WebXR-HitTest-3D' app/v11_2/webxr-measurement.js
           grep -q 'Pylon / direk tabelası' app/v11_2/sign-taxonomy.js
           grep -q 'boundaryDetected' app/v10/shape-engine.js
           grep -q '11.1.2-indexeddb-atomic' app/v11/storage-engine.js
