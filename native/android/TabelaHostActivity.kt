@@ -8,9 +8,10 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.ar.core.Frame
 
 /**
- * Minimal host for the V10 web UI.
+ * Minimal Android native host for the V11.2 FAST FIELD web UI.
  * Connect your ARCore renderer/Fragment to `onArFrameTap(frame,x,y)` when
- * `onMeasurementRequested` fires.
+ * `onMeasurementRequested` fires. Real metric values must still come from
+ * ARCore/Depth world-space points; RGB pixels are never converted into metres.
  */
 class TabelaHostActivity : AppCompatActivity() {
     lateinit var webView: WebView
@@ -30,9 +31,10 @@ class TabelaHostActivity : AppCompatActivity() {
         webView.addJavascriptInterface(metricBridge, "TabelaAndroidMetric")
         metricBridge.onMeasurementRequested = {
             // Open/show your ARCore measurement overlay here.
-            // Collect points in order: top-left, top-right, bottom-left, bottom-right.
+            // V11.2 starts this request automatically after a stable sign boundary is detected.
+            // Collect verified ARCore/Depth world-space points in the shape-specific order.
         }
-        webView.loadUrl("https://cihes252-dot.github.io/TABELA-AI/app/v10/?native=android")
+        webView.loadUrl("https://cihes252-dot.github.io/TABELA-AI/app/v11_2/?native=android&build=11.2.2&fast=1")
     }
 
     fun onArFrameTap(frame: Frame, x: Float, y: Float): Boolean = metricBridge.addPoint(frame, x, y)
