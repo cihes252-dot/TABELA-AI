@@ -11,7 +11,9 @@ import AVFoundation
 final class TabelaHostViewController: UIViewController, WKUIDelegate, WKNavigationDelegate {
     private static let trustedHost = "cihes252-dot.github.io"
     private static let trustedPathPrefix = "/TABELA-AI/"
-    private static let appVersion = "11.1.1"
+    private static var appVersion: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "11.1.2"
+    }
 
     private let arView = ARSCNView(frame: .zero)
     private var webView: WKWebView!
