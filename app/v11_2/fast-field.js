@@ -30,7 +30,7 @@
           const type=await previewType(data,seg);
           const badge=$('liveDetectBadge');if(badge){badge.className='badge '+(live.stable>=2?'ok':'warn');if(!type)badge.textContent=`TABELA ADAYI • ${seg.shapeLabel} • %${seg.confidence}`}
           if(live.stable>=2&&live.auto&&!live.autoTriggered&&gpsOk()){
-            live.autoTriggered=true;setTimeout(()=>{if(live.running&&!$('video')?.classList.contains('hidden'))$('snapBtn')?.click()},250);
+            live.autoTriggered=true;setTimeout(()=>{const b=$('snapBtn');if(live.running&&!$('video')?.classList.contains('hidden')&&b&&!b.disabled)b.click()},250);
           }
         }else{live.stable=0;live.last=null;const badge=$('liveDetectBadge');if(badge){badge.className='badge warn';badge.textContent='CANLI TABELA: aranıyor'}}
       }catch{live.stable=0;live.last=null;const badge=$('liveDetectBadge');if(badge){badge.className='badge warn';badge.textContent='CANLI TABELA: aranıyor'}}
@@ -38,8 +38,17 @@
     }
     live.timer=setTimeout(liveTick,520);
   }
-  function startLive(){if(live.running)return;live.running=true;live.autoTriggered=false;live.stable=0;live.last=null;liveTick()}
-  function stopLive(){live.running=false;if(live.timer)clearTimeout(live.timer);live.timer=null}
+  function startLive(){if(live.running)return;const video=$('video');if(!video?.srcObject||video.videoWidth<=0||video.classList.contains('hidden'))return;live.running=true;live.autoTriggered=false;live.stable=0;live.last=null;const badge=$('liveDetectBadge');if(badge){badge.className='badge warn';badge.textContent='CANLI TABELA: aranıyor'}liveTick()}
+  function stopLive(){live.running=false;if(live.timer)clearTimeout(live.timer);live.timer=null;live.busy=false}
+  function resumeLiveSoon(delay=320){
+    setTimeout(()=>{const video=$('video');if(video?.srcObject&&!video.classList.contains('hidden')&&video.videoWidth>0){live.autoTriggered=false;startLive();const b=$('snapBtn');if(b)b.disabled=false;$('scanStatus').textContent='Yeni tabela için canlı algılama yeniden başladı.'}},delay);
+  }
+  function patchStorageLifecycle(){
+    const storage=window.TabelaStorage;if(!storage?.add||storage.add.__fastFieldLifecycle)return;
+    const original=storage.add.bind(storage);
+    const wrapped=async(record,photoData)=>{const result=await original(record,photoData);resumeLiveSoon(500);return result};
+    wrapped.__fastFieldLifecycle=true;storage.add=wrapped;
+  }
   function renderTypeResult(r){
     const select=$('signType');if(!r||!select)return;
     if([...select.options].some(o=>o.value===r.label))select.value=r.label;
@@ -70,13 +79,15 @@
     window.dispatchEvent(new CustomEvent('tabela:fast-scan-complete',{detail:{ocr:currentOCR,type,shape:seg,quality:q}}));
   }
   function init(){
-    mountLiveUI();window.TabelaSignTaxonomy?.installSelect?.($('signType'));
-    const snapBtn=$('snapBtn'),startBtn=$('startCam'),retryBtn=$('retryBtn');
+    mountLiveUI();window.TabelaSignTaxonomy?.installSelect?.($('signType'));patchStorageLifecycle();
+    const snapBtn=$('snapBtn'),startBtn=$('startCam'),retryBtn=$('retryBtn'),video=$('video');
     if(snapBtn)snapBtn.onclick=fastScan;
-    if(startBtn?.onclick){const original=startBtn.onclick;startBtn.onclick=async e=>{await original.call(startBtn,e);if($('video')?.videoWidth>0){startLive();window.TabelaFastOCR.prewarm().catch(()=>{});setTimeout(()=>{$('scanStatus').textContent='Canlı tabela algılama açık. Tabela sabitlenince otomatik tek kare + tek OCR çalışır.'},0)}}}
-    retryBtn?.addEventListener('click',()=>{live.autoTriggered=false;setTimeout(()=>{if(!$('video')?.classList.contains('hidden'))startLive()},80)});
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')stopLive();else if(!$('video')?.classList.contains('hidden')&&$('video')?.srcObject)startLive()});
+    if(startBtn?.onclick){const original=startBtn.onclick;startBtn.onclick=async e=>{await original.call(startBtn,e);window.TabelaFastOCR.prewarm().catch(()=>{});if(video?.videoWidth>0){startLive();setTimeout(()=>{$('scanStatus').textContent='Canlı tabela algılama açık. Tabela sabitlenince otomatik tek kare + tek OCR çalışır.'},0)}}}
+    const onVideoReady=()=>{if(video?.srcObject&&!video.classList.contains('hidden')){startLive();window.TabelaFastOCR.prewarm().catch(()=>{});$('scanStatus').textContent='Canlı tabela algılama açık. Tabela sabitlenince otomatik tek kare + tek OCR çalışır.'}};
+    video?.addEventListener('playing',onVideoReady);video?.addEventListener('loadeddata',onVideoReady);
+    retryBtn?.addEventListener('click',()=>{live.autoTriggered=false;resumeLiveSoon(100)});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')stopLive();else resumeLiveSoon(120)});
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
-  window.TabelaFastField={startLive,stopLive,fastScan,state:live,version:'11.2.0-live-single-ocr'};
+  window.TabelaFastField={startLive,stopLive,resumeLiveSoon,fastScan,state:live,version:'11.2.1-live-single-ocr-continuous'};
 })();
