@@ -34,11 +34,38 @@
     }catch{return false}
   }
 
+  async function ensureServiceWorkerControl(){
+    if(window.TabelaNativeBundle||!('serviceWorker' in navigator))return true;
+    try{
+      await Promise.race([navigator.serviceWorker.ready,new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),4500))]);
+      if(navigator.serviceWorker.controller)return true;
+      await Promise.race([
+        new Promise(resolve=>navigator.serviceWorker.addEventListener('controllerchange',()=>resolve(),{once:true})),
+        new Promise(resolve=>setTimeout(resolve,1500))
+      ]);
+      return !!navigator.serviceWorker.controller;
+    }catch{return false}
+  }
+
+  async function warmRemoteAssets(){
+    if(!navigator.onLine)return{ok:false,offline:true};
+    const urls=[
+      'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+      'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+      'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'
+    ];
+    const results=await Promise.allSettled(urls.map(url=>fetch(url,{mode:'no-cors',cache:'reload'})));
+    return{ok:results.every(x=>x.status==='fulfilled'),failed:results.filter(x=>x.status==='rejected').length};
+  }
+
   async function preflight({warmOCR=false,persist=false}={}){
     const result={secure:window.isSecureContext,camera:!!navigator.mediaDevices?.getUserMedia,gps:!!navigator.geolocation,gpsFix:gpsReady(),indexedDB:!!window.indexedDB,storage:false,ocr:false,serviceWorker:true,online:navigator.onLine,details:[]};
     try{const h=await window.TabelaStorage?.health?.();result.storage=!!h?.ok;result.storageHealth=h}catch(error){result.details.push('Depolama: '+(error?.message||error))}
-    if(!window.TabelaNativeBundle&&'serviceWorker' in navigator){
-      try{await Promise.race([navigator.serviceWorker.ready,new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),4000))]);result.serviceWorker=true}catch{result.serviceWorker=false;result.details.push('Offline motoru henüz hazır değil')}
+    result.serviceWorker=await ensureServiceWorkerControl();
+    if(!result.serviceWorker)result.details.push('Offline motoru sayfayı henüz kontrol etmiyor; sayfayı bir kez yenileyip tekrar hazırlayın');
+    if(warmOCR&&result.serviceWorker){
+      const remote=await warmRemoteAssets();
+      if(!remote.ok&&!remote.offline)result.details.push('Harita/OCR CDN önbelleğinde '+remote.failed+' dosya hazırlanamadı');
     }
     const nativeOCR=!!window.TabelaOCREnsemble?.nativeAvailable?.();
     const webOCR=!!window.TabelaOCREnsemble?.webAvailable?.();
@@ -76,7 +103,7 @@
     const r=await preflight({warmOCR:true,persist:true});
     renderPreflight(r);
     if(btn){btn.disabled=false;btn.textContent=r.ready?'✓ Saha paketi hazır':'↻ Saha kontrolünü tekrar çalıştır'}
-    setScanStatus(r.ready?'Saha ön kontrolü tamam. Kamera API, GPS fix, OCR ve yerel kayıt hazır.':'Saha ön kontrolünde eksik var. Üstteki kontrol satırını düzeltmeden çekime başlamayın.');
+    setScanStatus(r.ready?'Saha ön kontrolü tamam. Kamera API, GPS fix, OCR, offline cache ve yerel kayıt hazır.':'Saha ön kontrolünde eksik var. Üstteki kontrol satırını düzeltmeden çekime başlamayın.');
   }
 
   function mountPreflight(){
@@ -110,6 +137,13 @@
     const b=document.createElement('button');b.id='photoBackupBtn';b.textContent='📷 Fotoğraflı yedek';
     b.onclick=async()=>{b.disabled=true;b.textContent='Yedek hazırlanıyor…';try{await exportPhotoBackup();b.textContent='✓ Fotoğraflı yedek indirildi'}catch(error){b.textContent='Yedek hatası';setScanStatus('Fotoğraflı yedek oluşturulamadı: '+(error?.message||error))}finally{setTimeout(()=>{b.disabled=false;b.textContent='📷 Fotoğraflı yedek'},1600)}};
     row.appendChild(b);
+  }
+
+  function patchMultiFrame(){
+    const mf=window.TabelaMultiFrame;if(!mf?.analyzeTop||mf.analyzeTop.__fieldHardened)return;
+    const original=mf.analyzeTop.bind(mf);
+    const wrapped=(frames,limit=3)=>original(frames,Math.min(5,Math.max(limit,frames?.length||0)));
+    wrapped.__fieldHardened=true;mf.analyzeTop=wrapped;
   }
 
   function patchSegmentation(){
@@ -200,7 +234,7 @@
   }
 
   function init(){
-    mountPreflight();mountPhotoBackup();patchSegmentation();patchStorageAdd();installGuards();
+    mountPreflight();mountPhotoBackup();patchMultiFrame();patchSegmentation();patchStorageAdd();installGuards();
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!state.wakeLock)requestWakeLock()});
   }
 
