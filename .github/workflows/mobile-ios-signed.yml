@@ -1,0 +1,143 @@
+name: Build Signed TABELA AI iPhone IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  signed-iphone:
+    runs-on: macos-latest
+    env:
+      IOS_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
+      IOS_DEVELOPMENT_TEAM: ${{ secrets.IOS_DEVELOPMENT_TEAM }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate Apple signing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in IOS_CERTIFICATE_P12_BASE64 IOS_CERTIFICATE_PASSWORD IOS_PROVISIONING_PROFILE_BASE64 IOS_KEYCHAIN_PASSWORD IOS_DEVELOPMENT_TEAM; do
+            if [ -z "${!key:-}" ]; then
+              echo "Missing required GitHub Actions secret: $key" >&2
+              exit 1
+            fi
+          done
+
+      - name: Install signing certificate and provisioning profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/tabela-cert.p12"
+          PROFILE_PATH="$RUNNER_TEMP/tabela.mobileprovision"
+          KEYCHAIN_PATH="$RUNNER_TEMP/tabela-signing.keychain-db"
+
+          printf '%s' "$IOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERT_PATH"
+          printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+
+          security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$IOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          security cms -D -i "$PROFILE_PATH" > "$RUNNER_TEMP/profile.plist"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")
+          PROFILE_TEAM=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$RUNNER_TEMP/profile.plist")
+          PROFILE_APP_ID=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$RUNNER_TEMP/profile.plist")
+
+          if [ "$PROFILE_TEAM" != "$IOS_DEVELOPMENT_TEAM" ]; then
+            echo "Provisioning profile team ($PROFILE_TEAM) does not match IOS_DEVELOPMENT_TEAM ($IOS_DEVELOPMENT_TEAM)." >&2
+            exit 1
+          fi
+          case "$PROFILE_APP_ID" in
+            "$IOS_DEVELOPMENT_TEAM.com.tabelaai.mobile"|"$IOS_DEVELOPMENT_TEAM.*") ;;
+            *) echo "Provisioning profile does not cover com.tabelaai.mobile: $PROFILE_APP_ID" >&2; exit 1 ;;
+          esac
+
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+
+      - name: Archive signed iPhone app
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project native/ios/TabelaAIMobile/TabelaAI.xcodeproj \
+            -scheme TabelaAI \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/TabelaAI.xcarchive" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$IOS_DEVELOPMENT_TEAM" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            PRODUCT_BUNDLE_IDENTIFIER=com.tabelaai.mobile \
+            archive
+
+      - name: Verify signed archive and bundled field app
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/TabelaAI.xcarchive/Products/Applications/TabelaAI.app"
+          test -d "$APP"
+          test -f "$APP/WebApp/v11_1/index.html"
+          test -f "$APP/WebApp/v11/ocr-ensemble.js"
+          test -f "$APP/WebApp/v11/measurement-engine.js"
+          grep -q '11.1.1' "$APP/WebApp/v11_1/index.html"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")" = "11.1.1"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = "3"
+
+      - name: Export IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          METHOD=development
+          if /usr/libexec/PlistBuddy -c 'Print :ProvisionsAllDevices' "$RUNNER_TEMP/profile.plist" 2>/dev/null | grep -q true; then
+            METHOD=enterprise
+          elif ! /usr/libexec/PlistBuddy -c 'Print :Entitlements:get-task-allow' "$RUNNER_TEMP/profile.plist" 2>/dev/null | grep -q true; then
+            METHOD=ad-hoc
+          fi
+
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>$METHOD</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>$IOS_DEVELOPMENT_TEAM</string>
+            <key>provisioningProfiles</key><dict>
+              <key>com.tabelaai.mobile</key><string>$PROFILE_NAME</string>
+            </dict>
+            <key>stripSwiftSymbols</key><true/>
+          </dict></plist>
+          EOF
+
+          mkdir -p dist/mobile/ios-signed
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/TabelaAI.xcarchive" \
+            -exportPath dist/mobile/ios-signed \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+          IPA="$(find dist/mobile/ios-signed -maxdepth 1 -name '*.ipa' -print -quit)"
+          test -n "$IPA"
+          mv "$IPA" dist/mobile/ios-signed/TabelaAI-iPhone-11.1.1.ipa
+          (cd dist/mobile/ios-signed && shasum -a 256 TabelaAI-iPhone-11.1.1.ipa > TabelaAI-iPhone-11.1.1.sha256)
+          (cd dist/mobile/ios-signed && shasum -a 256 -c TabelaAI-iPhone-11.1.1.sha256)
+
+      - name: Upload signed IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: tabela-ai-ios-signed-11-1-1
+          path: |
+            dist/mobile/ios-signed/TabelaAI-iPhone-11.1.1.ipa
+            dist/mobile/ios-signed/TabelaAI-iPhone-11.1.1.sha256
+          if-no-files-found: error
+          retention-days: 30
