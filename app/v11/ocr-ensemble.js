@@ -92,28 +92,29 @@
     const pair=bestNativePair(nativeResults);
     const allLines=nativeResults.flatMap(nativeLines);
     if(!allLines.length)return null;
-    let best=allLines[0],validated=false,confidence=Math.round(clamp(best.confidence));
+    let best=allLines[0],confidence=Math.round(clamp(best.confidence));
+    const stable=!!(pair&&pair.similarity>=.97);
     if(pair){
       best=(pair.a.confidence>=pair.b.confidence?pair.a:pair.b);
-      if(pair.similarity>=.97){validated=true;confidence=100}
+      if(pair.similarity>=.97)confidence=Math.max(confidence,98);
       else if(pair.similarity>=.88)confidence=Math.max(confidence,94);
       else if(pair.similarity>=.80)confidence=Math.max(confidence,88);
     }
     if(!confidence)confidence=pair?Math.round(70+pair.similarity*20):70;
     return{
       text:best.text,
-      confidence:Math.round(clamp(confidence)),
+      confidence:Math.round(clamp(confidence,0,98)),
       rawConfidence:Math.round(clamp(best.confidence)),
-      validated,
-      consensusFrames:pair&&pair.similarity>=.97?2:1,
-      nativeConsensus:!!(pair&&pair.similarity>=.97),
+      validated:false,
+      consensusFrames:stable?2:1,
+      nativeConsensus:stable,
       nativeEngine:best.engine,
       nativeText:best.text,
       nativeSimilarity:pair?.similarity||0,
-      validationMode:validated?'native-multiframe':'native-only-user-check',
+      validationMode:stable?'native-multiframe-stable':'native-only-user-check',
       frameResults:nativeResults.map((r,i)=>({frame:i+1,text:nativeLines(r)[0]?.text||'',confidence:nativeLines(r)[0]?.confidence||0,engine:r.engine||'native'})),
       candidates:allLines.filter((x,i,a)=>a.findIndex(y=>norm(y.text)===norm(x.text))===i).slice(0,10),
-      version:'11.1-native-first'
+      version:'11.1-independent-verify'
     };
   }
 
@@ -126,7 +127,7 @@
 
     if(!webResults.length){
       const nativeOnly=nativeOnlyResult(nativeResults);
-      if(nativeOnly){onProgress?.(100,nativeOnly.validated?'native çoklu-kare doğrulandı':'native OCR • kullanıcı kontrolü');return nativeOnly}
+      if(nativeOnly){onProgress?.(100,nativeOnly.nativeConsensus?'native OCR kararlı • ikinci motor doğrulaması gerekli':'native OCR • kullanıcı kontrolü');return nativeOnly}
       throw new Error('OCR motoru kullanılamıyor');
     }
 
@@ -135,8 +136,12 @@
 
     if(webResults.length>1){
       const s=sim(webResults[0].text,webResults[1].text);
-      if(s>=.94){consensusFrames=2;best={...best,validated:true,confidence:100,ensembleSimilarity:s,validationMode:'web-multiframe'}}
-      else if(s>=.82){best={...best,confidence:Math.max(best.confidence||0,92),ensembleSimilarity:s}}
+      if(s>=.94){
+        consensusFrames=2;
+        best={...best,validated:false,confidence:Math.min(97,Math.max(Number(best.confidence||0),97)),ensembleSimilarity:s,validationMode:'web-multiframe-stable'};
+      }else if(s>=.82){
+        best={...best,validated:false,confidence:Math.min(94,Math.max(Number(best.confidence||0),92)),ensembleSimilarity:s};
+      }
     }
 
     const nativeMatch=chooseNativeAgainstWeb(nativeResults,webResults);
@@ -144,16 +149,17 @@
       bestNativeSim=nativeMatch.similarity;
       if(bestNativeSim>=.97&&Number(nativeMatch.web.confidence||0)>=90){
         nativeConsensus=true;
-        best={...nativeMatch.web,text:nativeMatch.web.text,validated:true,confidence:100,nativeEngine:nativeMatch.line.engine,nativeText:nativeMatch.line.text,nativeSimilarity:bestNativeSim,validationMode:'native+web'};
+        best={...nativeMatch.web,text:nativeMatch.web.text,validated:true,confidence:100,nativeEngine:nativeMatch.line.engine,nativeText:nativeMatch.line.text,nativeSimilarity:bestNativeSim,validationMode:'native+web-independent'};
       }else if(bestNativeSim>=.86){
-        best={...best,nativeEngine:nativeMatch.line.engine,nativeText:nativeMatch.line.text,nativeSimilarity:bestNativeSim,confidence:Math.max(Number(best.confidence||0),94)};
+        best={...best,validated:false,nativeEngine:nativeMatch.line.engine,nativeText:nativeMatch.line.text,nativeSimilarity:bestNativeSim,confidence:Math.min(98,Math.max(Number(best.confidence||0),94))};
       }
     }
 
     const nativePair=bestNativePair(nativeResults);
     if(!best.validated&&nativePair?.similarity>=.97){
       const line=nativePair.a.confidence>=nativePair.b.confidence?nativePair.a:nativePair.b;
-      best={...best,text:line.text,validated:true,confidence:100,nativeEngine:line.engine,nativeText:line.text,nativeSimilarity:nativePair.similarity,validationMode:'native-multiframe'};
+      if(Number(best.confidence||0)<90){best={...best,text:line.text}}
+      best={...best,validated:false,confidence:Math.min(98,Math.max(Number(best.confidence||0),98)),nativeEngine:line.engine,nativeText:line.text,nativeSimilarity:nativePair.similarity,validationMode:'native-multiframe-stable'};
       nativeConsensus=true;
       consensusFrames=Math.max(consensusFrames,2);
     }
@@ -163,7 +169,7 @@
     for(const r of webResults){pushCandidate({text:r.text,confidence:r.confidence,engine:r.engine});for(const c of r.candidates||[])pushCandidate({...c,engine:'tesseract-web'})}
     for(const nr of nativeResults)for(const line of nativeLines(nr))pushCandidate(line);
 
-    onProgress?.(100,best.validated?(nativeConsensus?'native doğrulama tamam':'çoklu-kare doğrulandı'):'kullanıcı kontrolü');
+    onProgress?.(100,best.validated?'bağımsız OCR doğrulaması tamam':'OCR sonucu • kullanıcı kontrolü');
     return{
       ...best,
       consensusFrames,
@@ -173,9 +179,9 @@
       nativeSimilarity:best.nativeSimilarity||bestNativeSim||0,
       frameResults:webResults.map(r=>({text:r.text,confidence:r.confidence,validated:r.validated,engine:r.engine})),
       candidates:candidates.slice(0,10),
-      version:'11.1-native-first'
+      version:'11.1-independent-verify'
     };
   }
 
-  window.TabelaOCREnsemble={run,sim,nativeAvailable,webAvailable,version:'11.1-native-first'};
+  window.TabelaOCREnsemble={run,sim,nativeAvailable,webAvailable,version:'11.1-independent-verify'};
 })();
