@@ -34,8 +34,8 @@ jobs:
           PROFILE_PATH="$RUNNER_TEMP/tabela.mobileprovision"
           KEYCHAIN_PATH="$RUNNER_TEMP/tabela-signing.keychain-db"
 
-          printf '%s' "$IOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERT_PATH"
-          printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+          printf '%s' "$IOS_CERTIFICATE_P12_BASE64" | base64 -D > "$CERT_PATH"
+          printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -D > "$PROFILE_PATH"
 
           security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
@@ -99,12 +99,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          METHOD=development
+          METHOD=app-store
           if /usr/libexec/PlistBuddy -c 'Print :ProvisionsAllDevices' "$RUNNER_TEMP/profile.plist" 2>/dev/null | grep -q true; then
             METHOD=enterprise
-          elif ! /usr/libexec/PlistBuddy -c 'Print :Entitlements:get-task-allow' "$RUNNER_TEMP/profile.plist" 2>/dev/null | grep -q true; then
-            METHOD=ad-hoc
+          elif /usr/libexec/PlistBuddy -c 'Print :ProvisionedDevices:0' "$RUNNER_TEMP/profile.plist" >/dev/null 2>&1; then
+            if /usr/libexec/PlistBuddy -c 'Print :Entitlements:get-task-allow' "$RUNNER_TEMP/profile.plist" 2>/dev/null | grep -q true; then
+              METHOD=development
+            else
+              METHOD=ad-hoc
+            fi
           fi
+          echo "Detected export method: $METHOD"
 
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
