@@ -118,6 +118,25 @@
     };
   }
 
+  function manualFallback(){
+    return{
+      text:'',
+      confidence:0,
+      rawConfidence:0,
+      validated:false,
+      consensusFrames:0,
+      nativeConsensus:false,
+      nativeEngine:null,
+      nativeText:null,
+      nativeSimilarity:0,
+      validationMode:'manual-required-no-ocr-engine',
+      frameResults:[],
+      candidates:[],
+      unavailable:true,
+      version:'11.1.2-resilient-ocr'
+    };
+  }
+
   async function run(frames,shape,onProgress){
     const chosen=(frames||[]).slice(0,2);
     if(!chosen.length)throw new Error('OCR için kare yok');
@@ -128,7 +147,9 @@
     if(!webResults.length){
       const nativeOnly=nativeOnlyResult(nativeResults);
       if(nativeOnly){onProgress?.(100,nativeOnly.nativeConsensus?'native OCR kararlı • ikinci motor doğrulaması gerekli':'native OCR • kullanıcı kontrolü');return nativeOnly}
-      throw new Error('OCR motoru kullanılamıyor');
+      const fallback=manualFallback();
+      onProgress?.(100,'OCR motoru çevrimdışı • metni manuel girin');
+      return fallback;
     }
 
     let best=webResults.slice().sort((a,b)=>(b.confidence||0)-(a.confidence||0))[0];
@@ -179,9 +200,9 @@
       nativeSimilarity:best.nativeSimilarity||bestNativeSim||0,
       frameResults:webResults.map(r=>({text:r.text,confidence:r.confidence,validated:r.validated,engine:r.engine})),
       candidates:candidates.slice(0,10),
-      version:'11.1-independent-verify'
+      version:'11.1.2-resilient-ocr'
     };
   }
 
-  window.TabelaOCREnsemble={run,sim,nativeAvailable,webAvailable,version:'11.1-independent-verify'};
+  window.TabelaOCREnsemble={run,sim,nativeAvailable,webAvailable,version:'11.1.2-resilient-ocr'};
 })();
