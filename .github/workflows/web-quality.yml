@@ -36,6 +36,7 @@ jobs:
           node --check app/v11/address-engine.js
           node --check app/v11/material-engine.js
           node --check app/v11/storage-engine.js
+          node --check app/v11_1/resilience.js
           node --check app/v11_1/service-worker.js
           node --check app/v10/shape-engine.js
           node --check app/v10/ocr-engine.js
@@ -43,16 +44,21 @@ jobs:
       - name: Run measurement trust smoke tests
         run: node tests/web-measurement-smoke.mjs
 
-      - name: Verify V11.1 entry contracts
+      - name: Verify V11.1.2 entry contracts
         shell: bash
         run: |
           set -euo pipefail
           grep -q 'TABELA AI V11.1' app/v11_1/index.html
-          grep -q 'UNIVERSAL FIELD 11.1.1' app/v11_1/index.html
-          grep -q "serviceWorker.register('./service-worker.js?b=11.1.1'" app/v11_1/index.html
-          grep -q "nativeMode" app/v11_1/index.html
-          grep -q "app/v11_1" index.html
-          grep -q '11.1.1' app/v11_1/manifest.webmanifest
-          grep -q "tabela-ai-v11-1-11.1.1" app/v11_1/service-worker.js
-          grep -q "11.1-independent-verify" app/v11/ocr-ensemble.js
-          grep -q "native+web-independent" app/v11/ocr-ensemble.js
+          grep -q 'UNIVERSAL FIELD 11.1.2' app/v11_1/index.html
+          grep -Fq "serviceWorker.register('./service-worker.js?b=11.1.2'" app/v11_1/index.html
+          grep -q 'resilience.js?b=11.1.2' app/v11_1/index.html
+          grep -q 'nativeMode' app/v11_1/index.html
+          grep -q 'app/v11_1' index.html
+          grep -q '11.1.2' app/v11_1/manifest.webmanifest
+          grep -q 'tabela-ai-v11-1-11.1.2' app/v11_1/service-worker.js
+          grep -q '11.1.2-resilient-ocr' app/v11/ocr-ensemble.js
+          grep -q 'manual-required-no-ocr-engine' app/v11/ocr-ensemble.js
+          grep -q 'native+web-independent' app/v11/ocr-ensemble.js
+          grep -q '11.1.2-indexeddb-atomic' app/v11/storage-engine.js
+          grep -q 'requestPersistentStorage' app/v11/storage-engine.js
+          grep -q "version:'11.1.2'" app/v11_1/resilience.js
