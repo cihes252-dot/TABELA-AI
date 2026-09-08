@@ -63,21 +63,24 @@ jobs:
       - name: Run V11.2 FAST FIELD smoke test
         run: node tests/web-fast-field-smoke.mjs
 
-      - name: Verify V11.2 FAST FIELD release contract
+      - name: Verify V11.2.2 FAST FIELD release contract
         shell: bash
         run: |
           set -euo pipefail
           grep -q 'app/v11_2' index.html
-          grep -q 'FAST FIELD 11.2.0' app/v11_2/index.html
-          grep -Fq "serviceWorker.register('./service-worker.js?b=11.2.0'" app/v11_2/index.html
-          grep -q 'fast-field.js?b=11.2.0' app/v11_2/index.html
-          grep -q 'fast-ocr-engine.js?b=11.2.0' app/v11_2/index.html
-          grep -q 'sign-taxonomy.js?b=11.2.0' app/v11_2/index.html
-          grep -q 'tabela-ai-v11-2-11.2.0-fast' app/v11_2/service-worker.js
+          grep -q 'FAST FIELD 11.2.2' app/v11_2/index.html
+          grep -Fq "serviceWorker.register('./service-worker.js?b=11.2.2'" app/v11_2/index.html
+          grep -q 'fast-field.js?b=11.2.2' app/v11_2/index.html
+          grep -q 'fast-ocr-engine.js?b=11.2.2' app/v11_2/index.html
+          grep -q 'sign-taxonomy.js?b=11.2.2' app/v11_2/index.html
+          grep -q 'tabela-ai-v11-2-11.2.2-measure-first' app/v11_2/service-worker.js
           grep -q 'TARGET_MS=3000' app/v11_2/fast-ocr-engine.js
           grep -q 'singlePass:true' app/v11_2/fast-ocr-engine.js
           grep -q 'tur+eng' app/v11_2/fast-ocr-engine.js
+          grep -q 'apple-vision' app/v11_2/fast-ocr-engine.js
           grep -q 'TabelaFastField' app/v11_2/fast-field.js
+          grep -q 'AUTO ÖLÇÜ' app/v11_2/fast-field.js
+          grep -q 'requestAutoMetric' app/v11_2/fast-field.js
           grep -q 'Pylon / direk tabelası' app/v11_2/sign-taxonomy.js
           grep -q 'boundaryDetected' app/v10/shape-engine.js
           grep -q '11.1.2-indexeddb-atomic' app/v11/storage-engine.js
