@@ -52,7 +52,7 @@ jobs:
         run: |
           gradle -p native/android/TabelaAIMobile :app:assembleRelease :app:bundleRelease --stacktrace
 
-      - name: Verify signed APK and package release
+      - name: Verify signed APK, bundled app and package release
         shell: bash
         run: |
           set -euo pipefail
@@ -60,6 +60,10 @@ jobs:
           AAB="native/android/TabelaAIMobile/app/build/outputs/bundle/release/app-release.aab"
           test -f "$APK"
           test -f "$AAB"
+          unzip -l "$APK" | grep -q 'assets/v11_1/resilience.js'
+          unzip -p "$APK" assets/v11_1/index.html | grep -q '11.1.2'
+          unzip -p "$APK" assets/v11/ocr-ensemble.js | grep -q '11.1.2-resilient-ocr'
+          unzip -p "$APK" assets/v11/storage-engine.js | grep -q '11.1.2-indexeddb-atomic'
 
           SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
           test -n "$SDK_ROOT"
@@ -68,18 +72,18 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs "$APK"
 
           mkdir -p dist/mobile/android-signed
-          cp "$APK" dist/mobile/android-signed/TabelaAI-Android-11.1.1-release.apk
-          cp "$AAB" dist/mobile/android-signed/TabelaAI-Android-11.1.1-release.aab
-          (cd dist/mobile/android-signed && sha256sum TabelaAI-Android-11.1.1-release.apk TabelaAI-Android-11.1.1-release.aab > SHA256SUMS.txt)
+          cp "$APK" dist/mobile/android-signed/TabelaAI-Android-11.1.2-release.apk
+          cp "$AAB" dist/mobile/android-signed/TabelaAI-Android-11.1.2-release.aab
+          (cd dist/mobile/android-signed && sha256sum TabelaAI-Android-11.1.2-release.apk TabelaAI-Android-11.1.2-release.aab > SHA256SUMS.txt)
           (cd dist/mobile/android-signed && sha256sum -c SHA256SUMS.txt)
 
       - name: Upload signed Android release
         uses: actions/upload-artifact@v4
         with:
-          name: tabela-ai-android-signed-11-1-1
+          name: tabela-ai-android-signed-11-1-2
           path: |
-            dist/mobile/android-signed/TabelaAI-Android-11.1.1-release.apk
-            dist/mobile/android-signed/TabelaAI-Android-11.1.1-release.aab
+            dist/mobile/android-signed/TabelaAI-Android-11.1.2-release.apk
+            dist/mobile/android-signed/TabelaAI-Android-11.1.2-release.aab
             dist/mobile/android-signed/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
