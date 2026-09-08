@@ -3,7 +3,7 @@ import WebKit
 import ARKit
 import simd
 
-/// Native AR/LiDAR bridge for TABELA AI 11.1.
+/// Native AR/LiDAR bridge for TABELA AI 11.2.
 ///
 /// The bridge accepts only real ARKit world-space hits. LiDAR/Scene-Depth devices use calibrated
 /// depth reprojection for the metric 3D point and cross-check it against an ARKit raycast. Non-LiDAR
@@ -19,6 +19,8 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
     private var depthRayErrors: [Double] = []
     private var pointKinds: [String] = []
     private var hitScores: [Double] = []
+    private var autoMetricRequested = false
+    private var requestedBBoxNormalized: CGRect?
     private(set) var requestedShapeType: String = "horizontal-rectangle"
     private(set) var lastErrorMessage: String = ""
 
@@ -42,10 +44,29 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
               trustedRemote || trustedBundle else { return }
 
         reset()
-        if let payload = message.body as? [String: Any],
-           let shapeType = payload["shapeType"] as? String,
-           !shapeType.isEmpty {
-            requestedShapeType = shapeType
+        autoMetricRequested = false
+        requestedBBoxNormalized = nil
+        if let payload = message.body as? [String: Any] {
+            if let shapeType = payload["shapeType"] as? String, !shapeType.isEmpty {
+                requestedShapeType = shapeType
+            } else {
+                requestedShapeType = "horizontal-rectangle"
+            }
+            autoMetricRequested = (payload["autoMetric"] as? Bool) == true
+            if let box = payload["bboxNormalized"] as? [String: Any],
+               let x = numeric(box["x"]),
+               let y = numeric(box["y"]),
+               let w = numeric(box["w"]),
+               let h = numeric(box["h"]),
+               x.isFinite, y.isFinite, w.isFinite, h.isFinite,
+               w > 0.01, h > 0.01 {
+                requestedBBoxNormalized = CGRect(
+                    x: max(0, min(1, x)),
+                    y: max(0, min(1, y)),
+                    width: max(0.01, min(1, w)),
+                    height: max(0.01, min(1, h))
+                )
+            }
         } else {
             requestedShapeType = "horizontal-rectangle"
         }
@@ -56,12 +77,25 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
         )
     }
 
+    private func numeric(_ value: Any?) -> CGFloat? {
+        if let n = value as? NSNumber { return CGFloat(truncating: n) }
+        if let d = value as? Double { return CGFloat(d) }
+        if let f = value as? Float { return CGFloat(f) }
+        if let i = value as? Int { return CGFloat(i) }
+        return nil
+    }
+
     var requiredPointCount: Int? { TabelaMetricEngine.requiredPointCount(for: requestedShapeType) }
     var isDynamicShape: Bool { requiredPointCount == nil }
     var pointCount: Int { points.count }
     var canFinish: Bool {
         if let requiredPointCount { return points.count == requiredPointCount }
         return (3...24).contains(points.count)
+    }
+    var canAttemptAutomaticMeasurement: Bool {
+        guard autoMetricRequested, requestedBBoxNormalized != nil else { return false }
+        let shape = requestedShapeType.lowercased()
+        return !["triangle", "polygon", "freeform"].contains(shape)
     }
 
     func nextPrompt() -> String {
@@ -73,6 +107,61 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
 
     private var interfaceOrientation: UIInterfaceOrientation {
         arView?.window?.windowScene?.interfaceOrientation ?? .portrait
+    }
+
+    /// Attempts to map the detected 2-D sign boundary into ARKit display coordinates and collect
+    /// real world-space points. The method never converts pixels directly into metres.
+    /// It returns false whenever tracking, depth, raycast, or plane gates fail so the host can fall back
+    /// to manual point confirmation without fabricating a measurement.
+    func collectAutomaticBoundaryPoints() -> Bool {
+        guard canAttemptAutomaticMeasurement,
+              let view = arView,
+              let frame = view.session.currentFrame,
+              case .normal = frame.camera.trackingState,
+              let normalizedPoints = automaticNormalizedPoints() else {
+            lastErrorMessage = "Otomatik 3B sınır için ARKit takip durumu veya tabela sınırı hazır değil."
+            return false
+        }
+
+        reset()
+        let transform = frame.displayTransform(for: interfaceOrientation, viewportSize: view.bounds.size)
+        for p in normalizedPoints {
+            let viewport = p.applying(transform)
+            let screen = CGPoint(x: viewport.x * view.bounds.width, y: viewport.y * view.bounds.height)
+            guard screen.x.isFinite, screen.y.isFinite,
+                  screen.x >= 0, screen.y >= 0,
+                  screen.x <= view.bounds.width, screen.y <= view.bounds.height,
+                  addPoint(screenPoint: screen) else {
+                let message = lastErrorMessage.isEmpty
+                    ? "Otomatik 3B sınır noktası güven kapısından geçmedi."
+                    : lastErrorMessage
+                reset()
+                lastErrorMessage = message
+                return false
+            }
+        }
+        return canFinish
+    }
+
+    private func automaticNormalizedPoints() -> [CGPoint]? {
+        guard let b = requestedBBoxNormalized else { return nil }
+        let minX = b.minX, maxX = min(1, b.maxX), minY = b.minY, maxY = min(1, b.maxY)
+        let midX = (minX + maxX) / 2, midY = (minY + maxY) / 2
+        let shape = requestedShapeType.lowercased()
+        if shape == "circle" || shape == "oval" {
+            return [
+                CGPoint(x: minX, y: midY),
+                CGPoint(x: maxX, y: midY),
+                CGPoint(x: midX, y: minY),
+                CGPoint(x: midX, y: maxY)
+            ]
+        }
+        return [
+            CGPoint(x: minX, y: minY),
+            CGPoint(x: maxX, y: minY),
+            CGPoint(x: minX, y: maxY),
+            CGPoint(x: maxX, y: maxY)
+        ]
     }
 
     /// Adds one trusted world-space point. Returns false when the current tap fails a sensor/plane gate.
@@ -116,7 +205,6 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
         } else if let existingInfinite {
             selected = (existingInfinite, "ExistingPlaneInfinite", 92)
         } else if let estimated, caps.depthAvailable {
-            // Estimated plane is accepted only when independent Scene Depth is valid and agrees with it.
             selected = (estimated, "EstimatedPlane+SceneDepth", 86)
         } else {
             selected = nil
@@ -170,7 +258,6 @@ final class TabelaARBridge: NSObject, WKScriptMessageHandler {
         points.removeLast()
         if !pointKinds.isEmpty { pointKinds.removeLast() }
         if !hitScores.isEmpty { hitScores.removeLast() }
-        // Depth arrays exist only on Scene-Depth devices and correspond one-to-one with accepted points.
         if !depthSamples.isEmpty { depthSamples.removeLast() }
         if !depthRayErrors.isEmpty { depthRayErrors.removeLast() }
     }
