@@ -1,7 +1,7 @@
 (() => {
   const $=id=>document.getElementById(id);
-  const live={running:false,busy:false,timer:null,last:null,stable:0,auto:true,autoMetric:true,autoTriggered:false,lastDetectedAt:0,metricPending:false};
-  const esc2=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const live={running:false,busy:false,timer:null,last:null,stable:0,auto:false,autoMetric:true,autoTriggered:false,lastDetectedAt:0,metricPending:false};
+  const esc2=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
   const gpsOk=()=>/^GPS\s±\d+\s*m/i.test($('gpsBadge')?.textContent||'');
   function iou(a,b){if(!a||!b)return 0;const x1=Math.max(a.x,b.x),y1=Math.max(a.y,b.y),x2=Math.min(a.x+a.w,b.x+b.w),y2=Math.min(a.y+a.h,b.y+b.h),i=Math.max(0,x2-x1)*Math.max(0,y2-y1),u=a.w*a.h+b.w*b.h-i;return u?i/u:0}
   function snap(video,maxWidth=null,quality=.9){
@@ -9,12 +9,12 @@
   }
   function mountLiveUI(){
     const cam=document.querySelector('.camera');if(!cam||$('liveDetectBadge'))return;
-    const badge=document.createElement('div');badge.id='liveDetectBadge';badge.className='badge warn';badge.style.cssText='position:absolute;left:10px;top:10px;z-index:8;background:#5a4510;color:#ffdc72';badge.textContent='CANLI TABELA: bekliyor';cam.appendChild(badge);
-    const metric=document.createElement('div');metric.id='liveMetricBadge';metric.className='badge warn';metric.style.cssText='position:absolute;left:10px;top:48px;z-index:8;background:#13233b;color:#c9dcf4;max-width:72%;white-space:normal';metric.textContent='ÖLÇÜ: tabela bekleniyor';cam.appendChild(metric);
-    const toggle=document.createElement('button');toggle.id='autoCaptureToggle';toggle.type='button';toggle.textContent='⚡ OTOMATİK YAKALA: AÇIK';toggle.style.cssText='position:absolute;right:10px;top:10px;z-index:8;padding:8px 10px;font-size:10px';toggle.onclick=e=>{e.stopPropagation();live.auto=!live.auto;toggle.textContent='⚡ OTOMATİK YAKALA: '+(live.auto?'AÇIK':'KAPALI');toggle.className=live.auto?'success':''};cam.appendChild(toggle);
+    const badge=document.createElement('div');badge.id='liveDetectBadge';badge.className='badge warn';badge.style.cssText='position:absolute;left:10px;top:10px;z-index:8;background:#5a4510;color:#ffdc72';badge.textContent='TABELA TESPİTİ: MANUEL';cam.appendChild(badge);
+    const metric=document.createElement('div');metric.id='liveMetricBadge';metric.className='badge warn';metric.style.cssText='position:absolute;left:10px;top:48px;z-index:8;background:#13233b;color:#c9dcf4;max-width:72%;white-space:normal';metric.textContent='ÖLÇÜ: manuel tespit bekleniyor';cam.appendChild(metric);
+    const toggle=document.createElement('button');toggle.id='autoCaptureToggle';toggle.type='button';toggle.textContent='🎯 TESPİT: MANUEL';toggle.style.cssText='position:absolute;right:10px;top:10px;z-index:8;padding:8px 10px;font-size:10px';toggle.onclick=e=>{e.stopPropagation();$('scanStatus').textContent='Tabela tespiti manuel. Tabelayı kadraja alın ve “Tabelayı tespit et” butonuna basın.'};cam.appendChild(toggle);
     const metricToggle=document.createElement('button');metricToggle.id='autoMetricToggle';metricToggle.type='button';metricToggle.textContent='📐 AUTO ÖLÇÜ: AÇIK';metricToggle.style.cssText='position:absolute;right:10px;top:48px;z-index:8;padding:8px 10px;font-size:10px';metricToggle.onclick=e=>{e.stopPropagation();live.autoMetric=!live.autoMetric;metricToggle.textContent='📐 AUTO ÖLÇÜ: '+(live.autoMetric?'AÇIK':'KAPALI');metricToggle.className=live.autoMetric?'success':''};cam.appendChild(metricToggle);
-    const hint=document.querySelector('.hint');if(hint)hint.textContent='TESPİT → ÖLÇÜ → TÜRKÇE OCR • EN HIZLI AKIŞ';
-    const b=$('snapBtn');if(b)b.textContent='⚡ Tespit + ölçü + OCR';
+    const hint=document.querySelector('.hint');if(hint)hint.textContent='MANUEL TESPİT → ÖLÇÜ → TÜRKÇE OCR';
+    const b=$('snapBtn');if(b)b.textContent='🎯 Tabelayı tespit et';
   }
   async function previewType(data,seg){
     try{const r=await window.TabelaSignTaxonomy?.classify?.(data,{shape:seg});if(r){const badge=$('liveDetectBadge');if(badge)badge.textContent=`TABELA ✓ ${r.label} • %${r.confidence}`;return r}}catch{}
@@ -34,7 +34,7 @@
     if(!live.autoMetric){if(badge){badge.className='badge warn';badge.textContent='AUTO ÖLÇÜ kapalı'}return false}
     if(!cap?.available){if(badge){badge.className='badge warn';badge.textContent='GERÇEK m: native AR/LiDAR gerekli'}stage(6,false,'Web modunda metre üretilmedi • native 3D gerekli');return false}
     live.metricPending=true;if(badge){badge.className='badge warn';badge.textContent=`GERÇEK ÖLÇÜ başlıyor • ${cap.mode||cap.platform}`};stage(6,false,'Otomatik gerçek 3D ölçüm başlatılıyor…');
-    const ok=window.TabelaMetric.request({shapeType:seg?.shapeType||$('shapeSelect')?.value,bbox:seg?.bbox||null,bboxNormalized:meta?.bboxNormalized||null,captureWidth:meta?.captureWidth||null,captureHeight:meta?.captureHeight||null,ocr:$('ocr')?.value||'',autoMetric:true,fastField:true});
+    const ok=window.TabelaMetric.request({shapeType:seg?.shapeType||$('shapeSelect')?.value,bbox:seg?.bbox||null,bboxNormalized:meta?.bboxNormalized||null,captureWidth:meta?.captureWidth||null,captureHeight:meta?.captureHeight||null,ocr:$('ocr')?.value||'',autoMetric:true,fastField:true,manualDetection:true});
     if(!ok){live.metricPending=false;if(badge){badge.className='badge bad';badge.textContent='GERÇEK ÖLÇÜ başlatılamadı'}}return !!ok;
   }
   async function liveTick(){
@@ -47,24 +47,22 @@
         if(seg?.boundaryDetected!==false&&Number(seg?.confidence)>=52){
           const overlap=iou(live.last?.bbox,seg.bbox);live.stable=(live.last&&overlap>.52)?live.stable+1:1;live.last=seg;live.lastDetectedAt=Date.now();
           const type=await previewType(data,seg),badge=$('liveDetectBadge');if(badge){badge.className='badge '+(live.stable>=2?'ok':'warn');if(!type)badge.textContent=`TABELA ADAYI • ${seg.shapeLabel} • %${seg.confidence}`}
-          if(live.stable>=2&&live.auto&&!live.autoTriggered&&gpsOk()){
-            live.autoTriggered=true;setTimeout(()=>{const b=$('snapBtn');if(live.running&&!$('video')?.classList.contains('hidden')&&b&&!b.disabled)b.click()},180);
-          }
-        }else{live.stable=0;live.last=null;const badge=$('liveDetectBadge');if(badge){badge.className='badge warn';badge.textContent='CANLI TABELA: aranıyor'}}
-      }catch{live.stable=0;live.last=null;const badge=$('liveDetectBadge');if(badge){badge.className='badge warn';badge.textContent='CANLI TABELA: aranıyor'}}
+        }else{live.stable=0;live.last=null;const badge=$('liveDetectBadge');if(badge){badge.className='badge warn';badge.textContent='TABELA TESPİTİ: MANUEL'}}
+      }catch{live.stable=0;live.last=null;const badge=$('liveDetectBadge');if(badge){badge.className='badge warn';badge.textContent='TABELA TESPİTİ: MANUEL'}}
       finally{live.busy=false}
     }
     live.timer=setTimeout(liveTick,420);
   }
-  function startLive(){if(live.running)return;const video=$('video');if(!video?.srcObject||video.videoWidth<=0||video.classList.contains('hidden'))return;live.running=true;live.autoTriggered=false;live.stable=0;live.last=null;const badge=$('liveDetectBadge');if(badge){badge.className='badge warn';badge.textContent='CANLI TABELA: aranıyor'}liveTick()}
+  function startLive(){if(live.running||!live.auto)return;const video=$('video');if(!video?.srcObject||video.videoWidth<=0||video.classList.contains('hidden'))return;live.running=true;live.autoTriggered=false;live.stable=0;live.last=null;liveTick()}
   function stopLive(){live.running=false;if(live.timer)clearTimeout(live.timer);live.timer=null;live.busy=false}
-  function resumeLiveSoon(delay=320){
-    setTimeout(()=>{const video=$('video');if(video?.srcObject&&!video.classList.contains('hidden')&&video.videoWidth>0){live.autoTriggered=false;startLive();const b=$('snapBtn');if(b)b.disabled=false;$('scanStatus').textContent='Yeni tabela için canlı algılama yeniden başladı.'}},delay);
+  function readyForManualDetection(delay=120){
+    setTimeout(()=>{const video=$('video'),b=$('snapBtn');if(video?.srcObject&&!video.classList.contains('hidden')&&video.videoWidth>0){if(b)b.disabled=false;const badge=$('liveDetectBadge');if(badge){badge.className='badge warn';badge.textContent='TABELA TESPİTİ: MANUEL'}$('scanStatus').textContent='Kamera hazır. Tabelayı kadraja alın ve “Tabelayı tespit et” butonuna basın.'}},delay);
   }
+  function resumeLiveSoon(delay=320){readyForManualDetection(delay)}
   function patchStorageLifecycle(){
     const storage=window.TabelaStorage;if(!storage?.add||storage.add.__fastFieldLifecycle)return;
     const original=storage.add.bind(storage);
-    const wrapped=async(record,photoData)=>{const result=await original(record,photoData);resumeLiveSoon(500);return result};
+    const wrapped=async(record,photoData)=>{const result=await original(record,photoData);readyForManualDetection(300);return result};
     wrapped.__fastFieldLifecycle=true;storage.add=wrapped;
   }
   function renderTypeResult(r){
@@ -76,7 +74,7 @@
   }
   async function fastScan(){
     stopLive();live.autoTriggered=true;duplicateOverride=false;$('saveBtn').disabled=true;currentMeasure=null;live.metricPending=false;
-    $('scanStatus').textContent='Tabela otomatik tespit ediliyor…';stage(1,false,'Tek kare kalite kontrolü');
+    $('scanStatus').textContent='Manuel komut alındı • tabela tespit ediliyor…';stage(1,false,'Tek kare kalite kontrolü');
     const data=snap(video,null,.92);bestData=data;frames=[{data,index:0}];
     const seg=await TabelaSegmentation.detect(data),q=await TabelaQuality.analyze(data,seg.bbox);currentShape=seg;currentQuality=q;
     stage(1,q.pass,`Kalite %${q.score}`);$('qualityBox').classList.remove('hidden');$('qualityBox').innerHTML=`<b>Çekim kalitesi %${q.score}</b><div class="muted">${esc2(q.reasons?.join(' • ')||'Netlik / ışık / kontrast uygun')}</div>`;
@@ -97,8 +95,8 @@
     currentMaterial=await TabelaMaterial.classify(data,{shape:seg,ocr:currentOCR});if(currentMaterial.mode==='trained-model'&&currentMaterial.label&&[...$('panel').options].some(o=>o.value===currentMaterial.label))$('panel').value=currentMaterial.label;
     const o=TabelaOrientation.read();if(gps&&!address)address=await TabelaAddress.reverse(gps);$('addressText').textContent='Adres: '+(address?.displayName||'—');stage(5,true,`${type?.label||'Tip kontrol'} • ${address?.road||address?.city||'GPS hazır'} • yön ${Number.isFinite(o.heading)?Math.round(o.heading)+'°':'—'}`);
     if(!metricStarted)stage(6,false,'Gerçek metre için native AR/LiDAR gerekli');
-    $('scanStatus').textContent=`Tabela tespit edildi • ${engine} ${currentOCR.elapsedMs||0} ms${metricStarted?' • gerçek ölçüm akışı başlatıldı':''}. Sınır, OCR ve tipi kontrol edip kaydedin.`;$('retryBtn').classList.remove('hidden');updateSave();
-    window.dispatchEvent(new CustomEvent('tabela:fast-scan-complete',{detail:{ocr:currentOCR,type,shape:seg,quality:q,metricStarted}}));
+    $('scanStatus').textContent=`Manuel tabela tespiti tamamlandı • ${engine} ${currentOCR.elapsedMs||0} ms${metricStarted?' • gerçek ölçüm akışı başlatıldı':''}. Sınır, OCR ve tipi kontrol edip kaydedin.`;$('retryBtn').classList.remove('hidden');updateSave();
+    window.dispatchEvent(new CustomEvent('tabela:fast-scan-complete',{detail:{ocr:currentOCR,type,shape:seg,quality:q,metricStarted,manualDetection:true}}));
   }
   function installMetricLifecycle(){
     window.addEventListener('tabela:measurement',e=>{live.metricPending=false;const d=e.detail||{},badge=$('liveMetricBadge');if(badge){badge.className='badge ok';badge.textContent=`GERÇEK ÖLÇÜ ✓ ${Number(d.widthM||0).toFixed(3)}×${Number(d.heightM||d.diameterM||0).toFixed(3)} m • ${Number(d.areaM2||0).toFixed(3)} m²`}stage(6,true,`${d.source||'3D'} • kalite %${Math.round(Number(d.measurementQualityScore||d.qualityScore||0))}`);$('scanStatus').textContent='Gerçek ölçüm doğrulandı. Türkçe OCR ve tabela bilgilerini kontrol edip kaydedin.'});
@@ -111,12 +109,12 @@
     mountLiveUI();window.TabelaSignTaxonomy?.installSelect?.($('signType'));patchStorageLifecycle();installMetricLifecycle();
     const snapBtn=$('snapBtn'),startBtn=$('startCam'),retryBtn=$('retryBtn'),video=$('video');
     if(snapBtn)snapBtn.onclick=fastScan;
-    if(startBtn?.onclick){const original=startBtn.onclick;startBtn.onclick=async e=>{await original.call(startBtn,e);window.TabelaFastOCR.prewarm().catch(()=>{});if(video?.videoWidth>0){startLive();setTimeout(()=>{$('scanStatus').textContent='Canlı tabela algılama açık. Tabela sabitlenince otomatik tespit + ölçü + Türkçe OCR çalışır.'},0)}}}
-    const onVideoReady=()=>{if(video?.srcObject&&!video.classList.contains('hidden')){startLive();window.TabelaFastOCR.prewarm().catch(()=>{});$('scanStatus').textContent='Canlı tabela algılama açık. Tabela sabitlenince otomatik tespit + ölçü + Türkçe OCR çalışır.'}};
+    if(startBtn?.onclick){const original=startBtn.onclick;startBtn.onclick=async e=>{await original.call(startBtn,e);window.TabelaFastOCR.prewarm().catch(()=>{});readyForManualDetection(0)}}
+    const onVideoReady=()=>{if(video?.srcObject&&!video.classList.contains('hidden')){window.TabelaFastOCR.prewarm().catch(()=>{});readyForManualDetection(0)}};
     video?.addEventListener('playing',onVideoReady);video?.addEventListener('loadeddata',onVideoReady);
-    retryBtn?.addEventListener('click',()=>{live.autoTriggered=false;resumeLiveSoon(100)});
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')stopLive();else resumeLiveSoon(120)});
+    retryBtn?.addEventListener('click',()=>{live.autoTriggered=false;readyForManualDetection(100)});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')stopLive();else readyForManualDetection(120)});
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
-  window.TabelaFastField={startLive,stopLive,resumeLiveSoon,fastScan,requestAutoMetric,state:live,version:'11.2.2-detect-measure-ocr'};
+  window.TabelaFastField={startLive,stopLive,resumeLiveSoon:readyForManualDetection,fastScan,requestAutoMetric,state:live,version:'11.2.3-manual-detect-auto-measure-ocr'};
 })();
