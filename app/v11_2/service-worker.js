@@ -1,4 +1,4 @@
-const CACHE='tabela-ai-v11-2-11.2.0-fast';
+const CACHE='tabela-ai-v11-2-11.2.2-measure-first';
 const CORE=[
   './','./index.html','./manifest.webmanifest','./sign-taxonomy.js','./fast-ocr-engine.js','./fast-field.js',
   '../v11_1/resilience.js','../v11_1/field-hardening.js',
