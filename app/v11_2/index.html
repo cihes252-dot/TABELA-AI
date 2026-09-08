@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#08111e">
+  <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="pragma" content="no-cache">
+  <meta http-equiv="expires" content="0">
+  <title>TABELA AI V11.2</title>
+  <link rel="manifest" href="./manifest.webmanifest?b=11.2.0">
+</head>
+<body style="margin:0;background:#08111e;color:#eef5ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif">
+  <main style="max-width:760px;margin:auto;padding:32px 18px">
+    <h1 style="margin:0 0 8px">TABELA AI V11.2</h1>
+    <p style="color:#93a6bf">FAST FIELD 11.2.0 yükleniyor…</p>
+    <p id="fallback" style="display:none;color:#ffdc72">Ana uygulama yüklenemedi. <a style="color:#59dba8" href="../v11_1/?build=11.1.2">V11.1.2 güvenli sürümünü aç</a></p>
+  </main>
+  <script>
+  (async()=>{
+    const stamp=Date.now();
+    if('serviceWorker' in navigator){
+      try{const r=await navigator.serviceWorker.register('./service-worker.js?b=11.2.0',{scope:'./',updateViaCache:'none'});r.update().catch(()=>{})}catch(error){console.warn('V11.2 service worker kullanılamadı',error)}
+    }
+    async function getCore(){
+      try{const r=await fetch('../v11/index.html?core=11.2.0&t='+stamp,{cache:'no-store'});if(r.ok)return await r.text()}catch{}
+      try{const r=await fetch('../v11/index.html',{cache:'reload'});if(r.ok)return await r.text()}catch{}
+      throw new Error('core_load_failed');
+    }
+    try{
+      let html=await getCore();
+      html=html.replace('<head>','<head><base href="../v11/">');
+      html=html.replaceAll('<title>TABELA AI V11</title>','<title>TABELA AI V11.2</title>');
+      html=html.replaceAll('TABELA AI <span class="ver">V11</span>','TABELA AI <span class="ver">V11.2</span>');
+      html=html.replaceAll('HARDENED FIELD 11.0.0','FAST FIELD 11.2.0');
+      html=html.replaceAll('Kalite → çoklu kare → segmentation → OCR → duplicate → LiDAR/AR → kayıt','CANLI TESPİT → TEK KARE → TÜRKÇE OCR → TİP → DUPLICATE → KAYIT');
+      html=html.replaceAll('./manifest.webmanifest?b=11.0.0','../v11_2/manifest.webmanifest?b=11.2.0');
+      const storageScript='<script src="./storage-engine.js"><\/script>';
+      const add='<script src="./storage-engine.js"><\/script><script src="../v11_1/resilience.js?b=11.2.0"><\/script><script src="../v11_2/sign-taxonomy.js?b=11.2.0"><\/script><script src="../v11_2/fast-ocr-engine.js?b=11.2.0"><\/script><script src="../v11_2/fast-field.js?b=11.2.0"><\/script><script src="../v11_1/field-hardening.js?b=11.2.0"><\/script>';
+      html=html.replace(storageScript,add);
+      const oldSW="if('serviceWorker'in navigator)navigator.serviceWorker.register('./service-worker.js?b=11.0.0').catch(()=>{});";
+      html=html.replace(oldSW,"if('serviceWorker'in navigator)navigator.serviceWorker.register('../v11_2/service-worker.js?b=11.2.0').catch(()=>{});");
+      document.open();document.write(html);document.close();
+    }catch(error){const f=document.getElementById('fallback');if(f)f.style.display='block';console.error(error)}
+  })();
+  </script>
+</body>
+</html>
