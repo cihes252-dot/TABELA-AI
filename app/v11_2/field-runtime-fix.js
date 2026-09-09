@@ -25,8 +25,14 @@
   function enforceGPSReadiness(){
     const acc=gpsAccuracy(),ready=$('fieldReadyBadge'),detail=$('fieldReadyDetail');if(!ready)return;
     if(Number.isFinite(acc)&&acc>50){
-      ready.textContent='SAHA KONTROL GEREKLİ';ready.className='badge warn';
-      if(detail&&!/GPS doğruluğu/i.test(detail.textContent||''))detail.insertAdjacentHTML('beforeend',` • GPS doğruluğu: <b>✗ ±${Math.round(acc)} m</b>`);
+      ready.textContent='SAHA HAZIR • GPS ZAYIF';ready.className='badge warn';ready.dataset.gpsWeak='1';
+      if(detail&&!/GPS doğruluğu/i.test(detail.textContent||''))detail.insertAdjacentHTML('beforeend',` • GPS doğruluğu: <b>⚠ ±${Math.round(acc)} m</b>`);
+      return;
+    }
+    if(ready.dataset.gpsWeak==='1'){
+      ready.dataset.gpsWeak='0';
+      ready.textContent='SAHA HAZIR';ready.className='badge ok';
+      if(detail)detail.innerHTML=detail.innerHTML.replace(/\s*•\s*GPS doğruluğu:[^•<]*(?:<b>.*?<\/b>)?/i,'');
     }
   }
   function observeGPS(){
@@ -36,5 +42,5 @@
   }
   function boot(){ensureScanFrame();installSafeDraw();observeGPS();let n=0;const t=setInterval(()=>{ensureScanFrame();installSafeDraw();observeGPS();if(++n>24)clearInterval(t)},250)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-  window.TabelaFieldRuntimeFix={version:'11.2.6-clean-camera-gps-guard'};
+  window.TabelaFieldRuntimeFix={version:'11.2.8-clean-camera-gps-warning'};
 })();
