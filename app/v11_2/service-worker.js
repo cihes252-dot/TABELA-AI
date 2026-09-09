@@ -1,4 +1,4 @@
-const CACHE='tabela-ai-v11-2-11.2.7-stable-roi-ocr';
+const CACHE='tabela-ai-v11-2-11.2.8-dominant-sign-ocr';
 const CORE=[
   './','./index.html','./manifest.webmanifest','./sign-taxonomy.js','./fast-ocr-engine.js','./webxr-measurement.js','./fast-field.js','./field-diagnostics.js','./camera-clean-ui.js','./field-runtime-fix.js',
   '../v11_1/resilience.js','../v11_1/field-hardening.js',
