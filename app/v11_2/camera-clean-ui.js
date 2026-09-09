@@ -20,13 +20,17 @@
       #fieldPreflight.field-compact b{font-size:12px!important}
       #fieldPreflight.field-compact #fieldReadyBadge{font-size:10px!important;padding:5px 8px!important}
       #snapBtn.camera-capture{background:#2d7cff!important;color:#fff!important;flex:1 1 180px!important;font-size:15px!important;padding:13px 16px!important}
+      .nav{bottom:calc(7px + env(safe-area-inset-bottom,0px))!important}
+      main{padding-bottom:calc(145px + env(safe-area-inset-bottom,0px))!important}
       @media(max-width:600px){
-        main{padding-left:10px!important;padding-right:10px!important}
+        main{padding-left:10px!important;padding-right:10px!important;padding-bottom:calc(165px + env(safe-area-inset-bottom,0px))!important}
         .camera{border-radius:12px!important;min-height:clamp(430px,64vh,560px)!important}
         .camera video,.camera canvas{height:clamp(430px,64vh,560px)!important;min-height:430px!important}
         #scan .card:has(.camera){padding:8px!important}
         #scan .card:has(.camera)>.row{margin-top:8px!important}
         #liveDetectBadge{font-size:10px!important;bottom:8px!important}
+        .nav{width:calc(100% - 16px)!important;gap:4px!important;padding:6px!important}
+        .nav button{font-size:10px!important;padding:9px 2px!important}
       }
     `;
     document.head.appendChild(s);
@@ -86,7 +90,12 @@
     snap.classList.add('camera-capture');
     const wanted='📸 Fotoğraf Çek';
     if(/Fotoğraf Çek/i.test(snap.textContent||'')&&snap.textContent!==wanted)snap.textContent=wanted;
-    /* IMPORTANT: do not touch disabled, onclick, camera stream or OCR state here. */
+  }
+
+  function cleanUnavailableMetricBadge(){
+    const b=$('webxrBridgeBadge');if(!b)return;
+    const t=b.textContent||'',unavailable=/gerçek metre kapalı|ARKit\/LiDAR tarayıcıdan|tarayıcı\/cihazda yok|WebXR kapalı/i.test(t);
+    if(unavailable)b.style.setProperty('display','none','important');else b.style.removeProperty('display');
   }
 
   function drawCleanFrame(data){
@@ -111,7 +120,6 @@
     if(typeof original!=='function'||original.__cameraCleanWrapped)return;
     const wrapped=async function(data){
       const result=await original.apply(this,arguments);
-      /* Core draw() may paint circle/oval/polygon guides. Restore the untouched photo afterwards. */
       await drawCleanFrame(data);
       return result;
     };
@@ -120,11 +128,11 @@
     window.draw=wrapped;
   }
 
-  function clean(){installStyle();simplifyBadge();compactPreflight();decorateCaptureButton();installCleanDraw()}
+  function clean(){installStyle();simplifyBadge();compactPreflight();decorateCaptureButton();cleanUnavailableMetricBadge();installCleanDraw()}
   function boot(){
     clean();
     let n=0;
-    const t=setInterval(()=>{clean();if(++n>=30)clearInterval(t)},250);
+    const t=setInterval(()=>{clean();if(++n>=40)clearInterval(t)},250);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
