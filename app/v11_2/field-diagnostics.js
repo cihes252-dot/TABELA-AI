@@ -3,7 +3,7 @@
   const ua=navigator.userAgent||'';
   const isIOS=/iPad|iPhone|iPod/i.test(ua);
   const isAndroid=/Android/i.test(ua);
-  const state={version:'11.2.6',last:null};
+  const state={version:'11.2.9',last:null};
   async function permission(name){try{return (await navigator.permissions?.query?.({name})).state||'unknown'}catch{return'unknown'}}
   async function inspect(){
     const nativeIOS=!!window.webkit?.messageHandlers?.tabelaMetric;
@@ -29,8 +29,12 @@
     panel.innerHTML=`<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><div style="font-size:20px;font-weight:900">TABELA AI • SAHA TEŞHİS</div><div style="margin-top:3px;color:#93a6bf">${ready?'TEMEL SAHA SİSTEMİ HAZIR':'KONTROL GEREKİYOR'} • ${d.measurementProviderLabel}</div></div><button id="diagClose" style="padding:9px 12px">Kapat</button></div><div style="margin-top:14px">${rows.map(([k,v,i])=>`<div style="display:grid;grid-template-columns:24px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #18263a"><span>${i}</span><div><b>${k}</b><div style="color:#b8c8dc;font-size:12px">${String(v)}</div></div></div>`).join('')}</div><div style="margin-top:14px;padding:11px;border-radius:10px;background:#101d2d;font-size:12px;line-height:1.5">${d.measurementAvailable?'Gerçek ölçüm sağlayıcısı aktif. Ölçüm yine kalite kapısından geçmeden kaydedilmez.':'Web saha kaydı çalışır; ancak bu cihaz/tarayıcı kombinasyonunda gerçek metre/m² üretilmez.'}</div>`;
     panel.style.display='block';$('diagClose').onclick=()=>panel.style.display='none';
   }
-  function mount(){if($('fieldDiagBtn'))return;const btn=document.createElement('button');btn.id='fieldDiagBtn';btn.type='button';btn.textContent='🧪 Saha Teşhis';btn.style.cssText='position:fixed;right:12px;bottom:12px;z-index:2147483500;padding:10px 12px;border-radius:10px;font-weight:800';btn.onclick=async()=>render(await inspect());document.body.appendChild(btn)}
+  function mount(){
+    if($('fieldDiagBtn'))return;
+    const host=document.querySelector('#settings .card')||document.querySelector('#settings')||document.body;
+    const btn=document.createElement('button');btn.id='fieldDiagBtn';btn.type='button';btn.textContent='🧪 Saha Teşhis';btn.style.cssText='margin-top:12px;width:100%;padding:11px 12px;border-radius:10px;font-weight:800';btn.onclick=async()=>render(await inspect());host.appendChild(btn);
+  }
   function init(){mount();setTimeout(()=>inspect().catch(()=>{}),500)}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
-  window.TabelaFieldDiagnostics={inspect,render,state,version:'11.2.6-provider-diagnostics'};
+  window.TabelaFieldDiagnostics={inspect,render,state,version:'11.2.9-provider-diagnostics-settings'};
 })();
