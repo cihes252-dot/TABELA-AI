@@ -7,8 +7,9 @@
     const s=document.createElement('style');
     s.id=STYLE_ID;
     s.textContent=`
-      /* Presentation-only camera cleanup. Never changes camera/OCR/save logic. */
+      /* Presentation-only camera cleanup. Never removes DOM nodes used by field logic. */
       #scanframe,.scanframe,.camera .hint,#liveMetricBadge,#autoCaptureToggle,#autoMetricToggle{display:none!important}
+      .camera svg,.camera .shape-overlay,.camera .contour-overlay{display:none!important}
       .camera{position:relative!important;min-height:clamp(420px,62vh,620px)!important;background:#030811}
       .camera video,.camera canvas{width:100%!important;height:clamp(420px,62vh,620px)!important;min-height:420px!important;object-fit:cover!important}
       #liveBoundaryBox{border:2px solid #59dba8!important;border-radius:5px!important;box-shadow:none!important;z-index:7!important}
@@ -88,11 +89,42 @@
     /* IMPORTANT: do not touch disabled, onclick, camera stream or OCR state here. */
   }
 
-  function clean(){installStyle();simplifyBadge();compactPreflight();decorateCaptureButton()}
+  function drawCleanFrame(data){
+    return new Promise(resolve=>{
+      const canvas=$('photo');
+      if(!canvas||!data){resolve();return}
+      const img=new Image();
+      img.onload=()=>{
+        try{
+          const w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+          if(w>0&&h>0){canvas.width=w;canvas.height=h;const ctx=canvas.getContext('2d');ctx.clearRect(0,0,w,h);ctx.drawImage(img,0,0,w,h)}
+        }catch{}
+        resolve();
+      };
+      img.onerror=()=>resolve();
+      img.src=data;
+    });
+  }
+
+  function installCleanDraw(){
+    const original=window.draw;
+    if(typeof original!=='function'||original.__cameraCleanWrapped)return;
+    const wrapped=async function(data){
+      const result=await original.apply(this,arguments);
+      /* Core draw() may paint circle/oval/polygon guides. Restore the untouched photo afterwards. */
+      await drawCleanFrame(data);
+      return result;
+    };
+    wrapped.__cameraCleanWrapped=true;
+    wrapped.__cameraCleanOriginal=original;
+    window.draw=wrapped;
+  }
+
+  function clean(){installStyle();simplifyBadge();compactPreflight();decorateCaptureButton();installCleanDraw()}
   function boot(){
     clean();
     let n=0;
-    const t=setInterval(()=>{clean();if(++n>=20)clearInterval(t)},300);
+    const t=setInterval(()=>{clean();if(++n>=30)clearInterval(t)},250);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
