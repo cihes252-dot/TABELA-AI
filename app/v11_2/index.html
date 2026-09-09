@@ -8,22 +8,22 @@
   <meta http-equiv="pragma" content="no-cache">
   <meta http-equiv="expires" content="0">
   <title>TABELA AI V11.2</title>
-  <link rel="manifest" href="./manifest.webmanifest?b=11.2.9">
+  <link rel="manifest" href="./manifest.webmanifest?b=11.2.10">
 </head>
 <body style="margin:0;background:#08111e;color:#eef5ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif">
   <main style="max-width:760px;margin:auto;padding:32px 18px">
     <h1 style="margin:0 0 8px">TABELA AI V11.2</h1>
-    <p style="color:#93a6bf">FAST FIELD 11.2.9 • temiz kamera + güvenli tek geçiş OCR yükleniyor…</p>
+    <p style="color:#93a6bf">FAST FIELD 11.2.10 • temiz kamera + tam tabela ROI önce + hızlı Türkçe OCR yükleniyor…</p>
     <p id="fallback" style="display:none;color:#ffdc72">Ana uygulama yüklenemedi. <a style="color:#59dba8" href="../v11_1/?build=11.1.2">V11.1.2 güvenli sürümünü aç</a></p>
   </main>
   <script>
   (async()=>{
     const stamp=Date.now();
     if('serviceWorker' in navigator){
-      try{const r=await navigator.serviceWorker.register('./service-worker.js?b=11.2.9',{scope:'./',updateViaCache:'none'});r.update().catch(()=>{})}catch(error){console.warn('V11.2 service worker kullanılamadı',error)}
+      try{const r=await navigator.serviceWorker.register('./service-worker.js?b=11.2.10',{scope:'./',updateViaCache:'none'});r.update().catch(()=>{})}catch(error){console.warn('V11.2 service worker kullanılamadı',error)}
     }
     async function getCore(){
-      try{const r=await fetch('../v11/index.html?core=11.2.9&t='+stamp,{cache:'no-store'});if(r.ok)return await r.text()}catch{}
+      try{const r=await fetch('../v11/index.html?core=11.2.10&t='+stamp,{cache:'no-store'});if(r.ok)return await r.text()}catch{}
       try{const r=await fetch('../v11/index.html',{cache:'reload'});if(r.ok)return await r.text()}catch{}
       throw new Error('core_load_failed');
     }
@@ -32,17 +32,17 @@
       html=html.replace('<head>','<head><base href="../v11/">');
       html=html.replaceAll('<title>TABELA AI V11</title>','<title>TABELA AI V11.2</title>');
       html=html.replaceAll('TABELA AI <span class="ver">V11</span>','TABELA AI <span class="ver">V11.2</span>');
-      html=html.replaceAll('HARDENED FIELD 11.0.0','FAST FIELD 11.2.9');
+      html=html.replaceAll('HARDENED FIELD 11.0.0','FAST FIELD 11.2.10');
       html=html.replaceAll('Kalite → çoklu kare → segmentation → OCR → duplicate → LiDAR/AR → kayıt','OTOMATİK ÖN TESPİT → FOTOĞRAF → TÜRKÇE OCR → TİP → GPS/DUPLICATE → DOĞRU ÖLÇÜM SAĞLAYICISI → KAYIT');
-      html=html.replaceAll('./manifest.webmanifest?b=11.0.0','../v11_2/manifest.webmanifest?b=11.2.9');
+      html=html.replaceAll('./manifest.webmanifest?b=11.0.0','../v11_2/manifest.webmanifest?b=11.2.10');
       html=html.replace('<div id="scanframe" class="scanframe"></div>','<div id="scanframe" class="scanframe" style="display:none!important" aria-hidden="true"></div>');
       html=html.replace('Tabelayı kadrajda mümkün olduğunca büyük gösterin.','Kamera tüm görüntüyü tarar; herhangi bir sabit oval veya şekil kılavuzu kullanılmaz.');
       html=html.replace('placeholder="Otomatik okunur"','placeholder="OCR sonucu burada görünecek"');
       const storageScript='<script src="./storage-engine.js"><\/script>';
-      const add='<script src="./storage-engine.js"><\/script><script src="../v11_1/resilience.js?b=11.2.9"><\/script><script src="../v11_2/sign-taxonomy.js?b=11.2.9"><\/script><script src="../v11_2/fast-ocr-engine.js?b=11.2.9"><\/script><script src="../v11_2/field-accuracy-fix.js?b=11.2.9"><\/script><script src="../v11_2/webxr-measurement.js?b=11.2.9"><\/script><script src="../v11_2/fast-field.js?b=11.2.9"><\/script><script src="../v11_2/field-diagnostics.js?b=11.2.9"><\/script><script src="../v11_1/field-hardening.js?b=11.2.9"><\/script><script src="../v11_2/camera-clean-ui.js?b=11.2.9"><\/script><script src="../v11_2/field-runtime-fix.js?b=11.2.9"><\/script>';
+      const add='<script src="./storage-engine.js"><\/script><script src="../v11_1/resilience.js?b=11.2.10"><\/script><script src="../v11_2/sign-taxonomy.js?b=11.2.10"><\/script><script src="../v11_2/fast-ocr-engine.js?b=11.2.10"><\/script><script src="../v11_2/field-accuracy-fix.js?b=11.2.10"><\/script><script src="../v11_2/webxr-measurement.js?b=11.2.10"><\/script><script src="../v11_2/fast-field.js?b=11.2.10"><\/script><script src="../v11_2/field-diagnostics.js?b=11.2.10"><\/script><script src="../v11_1/field-hardening.js?b=11.2.10"><\/script><script src="../v11_2/camera-clean-ui.js?b=11.2.10"><\/script><script src="../v11_2/field-runtime-fix.js?b=11.2.10"><\/script>';
       html=html.replace(storageScript,add);
       const oldSW="if('serviceWorker'in navigator)navigator.serviceWorker.register('./service-worker.js?b=11.0.0').catch(()=>{});";
-      html=html.replace(oldSW,"if('serviceWorker'in navigator)navigator.serviceWorker.register('../v11_2/service-worker.js?b=11.2.9').catch(()=>{});");
+      html=html.replace(oldSW,"if('serviceWorker'in navigator)navigator.serviceWorker.register('../v11_2/service-worker.js?b=11.2.10').catch(()=>{});");
       document.open();document.write(html);document.close();
     }catch(error){const f=document.getElementById('fallback');if(f)f.style.display='block';console.error(error)}
   })();
