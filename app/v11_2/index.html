@@ -8,22 +8,22 @@
   <meta http-equiv="pragma" content="no-cache">
   <meta http-equiv="expires" content="0">
   <title>TABELA AI V11.2</title>
-  <link rel="manifest" href="./manifest.webmanifest?b=11.2.6">
+  <link rel="manifest" href="./manifest.webmanifest?b=11.2.6-fix4">
 </head>
 <body style="margin:0;background:#08111e;color:#eef5ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif">
   <main style="max-width:760px;margin:auto;padding:32px 18px">
     <h1 style="margin:0 0 8px">TABELA AI V11.2</h1>
-    <p style="color:#93a6bf">FAST FIELD 11.2.6 • doğrulanmış sensör mimarisi yükleniyor…</p>
+    <p style="color:#93a6bf">FAST FIELD 11.2.6 • saha düzeltmeleri yükleniyor…</p>
     <p id="fallback" style="display:none;color:#ffdc72">Ana uygulama yüklenemedi. <a style="color:#59dba8" href="../v11_1/?build=11.1.2">V11.1.2 güvenli sürümünü aç</a></p>
   </main>
   <script>
   (async()=>{
     const stamp=Date.now();
     if('serviceWorker' in navigator){
-      try{const r=await navigator.serviceWorker.register('./service-worker.js?b=11.2.6',{scope:'./',updateViaCache:'none'});r.update().catch(()=>{})}catch(error){console.warn('V11.2 service worker kullanılamadı',error)}
+      try{const r=await navigator.serviceWorker.register('./service-worker.js?b=11.2.6-fix4',{scope:'./',updateViaCache:'none'});r.update().catch(()=>{})}catch(error){console.warn('V11.2 service worker kullanılamadı',error)}
     }
     async function getCore(){
-      try{const r=await fetch('../v11/index.html?core=11.2.6&t='+stamp,{cache:'no-store'});if(r.ok)return await r.text()}catch{}
+      try{const r=await fetch('../v11/index.html?core=11.2.6-fix4&t='+stamp,{cache:'no-store'});if(r.ok)return await r.text()}catch{}
       try{const r=await fetch('../v11/index.html',{cache:'reload'});if(r.ok)return await r.text()}catch{}
       throw new Error('core_load_failed');
     }
@@ -34,15 +34,14 @@
       html=html.replaceAll('TABELA AI <span class="ver">V11</span>','TABELA AI <span class="ver">V11.2</span>');
       html=html.replaceAll('HARDENED FIELD 11.0.0','FAST FIELD 11.2.6');
       html=html.replaceAll('Kalite → çoklu kare → segmentation → OCR → duplicate → LiDAR/AR → kayıt','OTOMATİK ÖN TESPİT → DOĞRU ÖLÇÜM SAĞLAYICISI → FOTOĞRAF → TÜRKÇE OCR → TİP → GPS/DUPLICATE → KAYIT');
-      html=html.replaceAll('./manifest.webmanifest?b=11.0.0','../v11_2/manifest.webmanifest?b=11.2.6');
-      // DOM uyumluluğu: çekirdek kod scanframe elemanını bekler. Elemanı silmeyiz; sadece görünmez tutarız.
+      html=html.replaceAll('./manifest.webmanifest?b=11.0.0','../v11_2/manifest.webmanifest?b=11.2.6-fix4');
       html=html.replace('<div id="scanframe" class="scanframe"></div>','<div id="scanframe" class="scanframe" style="display:none!important" aria-hidden="true"></div>');
       html=html.replace('Tabelayı kadrajda mümkün olduğunca büyük gösterin.','Kamera tüm görüntüyü tarar; herhangi bir sabit oval veya şekil kılavuzu kullanılmaz.');
       const storageScript='<script src="./storage-engine.js"><\/script>';
-      const add='<script src="./storage-engine.js"><\/script><script src="../v11_1/resilience.js?b=11.2.6"><\/script><script src="../v11_2/sign-taxonomy.js?b=11.2.6"><\/script><script src="../v11_2/fast-ocr-engine.js?b=11.2.6"><\/script><script src="../v11_2/webxr-measurement.js?b=11.2.6"><\/script><script src="../v11_2/fast-field.js?b=11.2.6"><\/script><script src="../v11_2/field-diagnostics.js?b=11.2.6"><\/script><script src="../v11_1/field-hardening.js?b=11.2.6"><\/script><script src="../v11_2/camera-clean-ui.js?b=11.2.6-ui3"><\/script>';
+      const add='<script src="./storage-engine.js"><\/script><script src="../v11_1/resilience.js?b=11.2.6-fix4"><\/script><script src="../v11_2/sign-taxonomy.js?b=11.2.6-fix4"><\/script><script src="../v11_2/fast-ocr-engine.js?b=11.2.6-fix4"><\/script><script src="../v11_2/webxr-measurement.js?b=11.2.6-fix4"><\/script><script src="../v11_2/fast-field.js?b=11.2.6-fix4"><\/script><script src="../v11_2/field-diagnostics.js?b=11.2.6-fix4"><\/script><script src="../v11_1/field-hardening.js?b=11.2.6-fix4"><\/script><script src="../v11_2/camera-clean-ui.js?b=11.2.6-fix4"><\/script><script src="../v11_2/field-runtime-fix.js?b=11.2.6-fix4"><\/script>';
       html=html.replace(storageScript,add);
       const oldSW="if('serviceWorker'in navigator)navigator.serviceWorker.register('./service-worker.js?b=11.0.0').catch(()=>{});";
-      html=html.replace(oldSW,"if('serviceWorker'in navigator)navigator.serviceWorker.register('../v11_2/service-worker.js?b=11.2.6').catch(()=>{});");
+      html=html.replace(oldSW,"if('serviceWorker'in navigator)navigator.serviceWorker.register('../v11_2/service-worker.js?b=11.2.6-fix4').catch(()=>{});");
       document.open();document.write(html);document.close();
     }catch(error){const f=document.getElementById('fallback');if(f)f.style.display='block';console.error(error)}
   })();
