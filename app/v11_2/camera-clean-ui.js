@@ -1,10 +1,13 @@
 (() => {
   const $=id=>document.getElementById(id);
   const STYLE_ID='tabelaCameraCleanStyle';
+
   function installStyle(){
     if($(STYLE_ID))return;
-    const s=document.createElement('style');s.id=STYLE_ID;s.textContent=`
-      /* FIELD CAMERA: keep the image visible. No fixed oval/shape guide. */
+    const s=document.createElement('style');
+    s.id=STYLE_ID;
+    s.textContent=`
+      /* Presentation-only camera cleanup. Never changes camera/OCR/save logic. */
       #scanframe,.scanframe,.camera .hint,#liveMetricBadge,#autoCaptureToggle,#autoMetricToggle{display:none!important}
       .camera{position:relative!important;min-height:clamp(420px,62vh,620px)!important;background:#030811}
       .camera video,.camera canvas{width:100%!important;height:clamp(420px,62vh,620px)!important;min-height:420px!important;object-fit:cover!important}
@@ -24,8 +27,10 @@
         #scan .card:has(.camera)>.row{margin-top:8px!important}
         #liveDetectBadge{font-size:10px!important;bottom:8px!important}
       }
-    `;document.head.appendChild(s);
+    `;
+    document.head.appendChild(s);
   }
+
   function compactStatusText(text){
     const t=String(text||'');
     if(/TABELA HAZIR/i.test(t))return '✓ TABELA BULUNDU • FOTOĞRAF ÇEK';
@@ -36,17 +41,27 @@
     if(/aranıyor/i.test(t))return 'Tabela aranıyor…';
     return t.length>42?t.slice(0,39)+'…':t;
   }
+
   function simplifyBadge(){
-    const b=$('liveDetectBadge');if(!b)return;
+    const b=$('liveDetectBadge');
+    if(!b)return;
     if(b.dataset.cleanWatch!=='1'){
       b.dataset.cleanWatch='1';
-      let busy=false;
-      new MutationObserver(()=>{if(busy)return;const next=compactStatusText(b.textContent);if(next!==b.textContent){busy=true;b.textContent=next;busy=false}}).observe(b,{childList:true,characterData:true,subtree:true});
+      let internal=false;
+      const apply=()=>{
+        if(internal)return;
+        const current=b.textContent||'';
+        const next=compactStatusText(current);
+        if(next!==current){internal=true;b.textContent=next;internal=false}
+      };
+      new MutationObserver(apply).observe(b,{childList:true,characterData:true,subtree:true});
+      apply();
     }
-    const next=compactStatusText(b.textContent);if(next!==b.textContent)b.textContent=next;
   }
+
   function compactPreflight(){
-    const card=$('fieldPreflight'),badge=$('fieldReadyBadge');if(!card||!badge)return;
+    const card=$('fieldPreflight'),badge=$('fieldReadyBadge');
+    if(!card||!badge)return;
     const ready=/SAHA HAZIR/i.test(badge.textContent||'');
     if(ready&&!card.classList.contains('field-expanded'))card.classList.add('field-compact');
     if(card.dataset.cleanToggle!=='1'){
@@ -54,21 +69,30 @@
       card.addEventListener('click',e=>{
         if(e.target.closest('button'))return;
         if(!/SAHA HAZIR/i.test($('fieldReadyBadge')?.textContent||''))return;
-        card.classList.toggle('field-expanded');card.classList.toggle('field-compact',!card.classList.contains('field-expanded'));
+        card.classList.toggle('field-expanded');
+        card.classList.toggle('field-compact',!card.classList.contains('field-expanded'));
       });
-      new MutationObserver(()=>compactPreflight()).observe(badge,{childList:true,characterData:true,subtree:true});
+      new MutationObserver(()=>{
+        const nowReady=/SAHA HAZIR/i.test(badge.textContent||'');
+        if(nowReady&&!card.classList.contains('field-expanded'))card.classList.add('field-compact');
+      }).observe(badge,{childList:true,characterData:true,subtree:true});
     }
   }
-  function cameraActions(){
-    const snap=$('snapBtn'),start=$('startCam'),video=$('video');
-    if(snap){snap.classList.add('camera-capture');if(/Fotoğraf Çek/i.test(snap.textContent||''))snap.textContent='📸 Fotoğraf Çek';}
-    if(video&&video.dataset.cleanCamera!=='1'){
-      video.dataset.cleanCamera='1';
-      const on=()=>{if(start)start.style.display='none';if(snap){snap.disabled=false;snap.textContent='📸 Fotoğraf Çek'}};
-      video.addEventListener('playing',on);video.addEventListener('loadeddata',on);
-    }
+
+  function decorateCaptureButton(){
+    const snap=$('snapBtn');
+    if(!snap)return;
+    snap.classList.add('camera-capture');
+    const wanted='📸 Fotoğraf Çek';
+    if(/Fotoğraf Çek/i.test(snap.textContent||'')&&snap.textContent!==wanted)snap.textContent=wanted;
+    /* IMPORTANT: do not touch disabled, onclick, camera stream or OCR state here. */
   }
-  function clean(){installStyle();simplifyBadge();compactPreflight();cameraActions();}
-  function boot(){clean();let n=0;const t=setInterval(()=>{clean();if(++n>30)clearInterval(t)},250);new MutationObserver(()=>clean()).observe(document.body,{childList:true,subtree:true});}
+
+  function clean(){installStyle();simplifyBadge();compactPreflight();decorateCaptureButton()}
+  function boot(){
+    clean();
+    let n=0;
+    const t=setInterval(()=>{clean();if(++n>=20)clearInterval(t)},300);
+  }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
