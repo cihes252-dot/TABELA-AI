@@ -20,7 +20,7 @@
   (async()=>{
     const stamp=Date.now();
     if('serviceWorker' in navigator){
-      try{const r=await navigator.serviceWorker.register('./service-worker.js?b=11.2.6',{scope:'./',updateViaCache:'none'});r.update().catch(()=>{})}catch(error){console.warn('V11.2 service worker kullanılamadı',error)}
+      try{const r=await navigator.serviceWorker.register('./service-worker.js?b=11.2.6-ui1',{scope:'./',updateViaCache:'none'});r.update().catch(()=>{})}catch(error){console.warn('V11.2 service worker kullanılamadı',error)}
     }
     async function getCore(){
       try{const r=await fetch('../v11/index.html?core=11.2.6&t='+stamp,{cache:'no-store'});if(r.ok)return await r.text()}catch{}
@@ -39,10 +39,10 @@
       html=html.replace('<div id="scanframe" class="scanframe"></div>','');
       html=html.replace('Tabelayı kadrajda mümkün olduğunca büyük gösterin.','Kamera tüm görüntüyü tarar; herhangi bir sabit oval veya şekil kılavuzu kullanılmaz.');
       const storageScript='<script src="./storage-engine.js"><\/script>';
-      const add='<script src="./storage-engine.js"><\/script><script src="../v11_1/resilience.js?b=11.2.6"><\/script><script src="../v11_2/sign-taxonomy.js?b=11.2.6"><\/script><script src="../v11_2/fast-ocr-engine.js?b=11.2.6"><\/script><script src="../v11_2/webxr-measurement.js?b=11.2.6"><\/script><script src="../v11_2/fast-field.js?b=11.2.6"><\/script><script src="../v11_2/field-diagnostics.js?b=11.2.6"><\/script><script src="../v11_1/field-hardening.js?b=11.2.6"><\/script>';
+      const add='<script src="./storage-engine.js"><\/script><script src="../v11_1/resilience.js?b=11.2.6"><\/script><script src="../v11_2/sign-taxonomy.js?b=11.2.6"><\/script><script src="../v11_2/fast-ocr-engine.js?b=11.2.6"><\/script><script src="../v11_2/webxr-measurement.js?b=11.2.6"><\/script><script src="../v11_2/fast-field.js?b=11.2.6"><\/script><script src="../v11_2/field-diagnostics.js?b=11.2.6"><\/script><script src="../v11_1/field-hardening.js?b=11.2.6"><\/script><script src="../v11_2/camera-clean-ui.js?b=11.2.6-ui1"><\/script>';
       html=html.replace(storageScript,add);
       const oldSW="if('serviceWorker'in navigator)navigator.serviceWorker.register('./service-worker.js?b=11.0.0').catch(()=>{});";
-      html=html.replace(oldSW,"if('serviceWorker'in navigator)navigator.serviceWorker.register('../v11_2/service-worker.js?b=11.2.6').catch(()=>{});");
+      html=html.replace(oldSW,"if('serviceWorker'in navigator)navigator.serviceWorker.register('../v11_2/service-worker.js?b=11.2.6-ui1').catch(()=>{});");
       document.open();document.write(html);document.close();
     }catch(error){const f=document.getElementById('fallback');if(f)f.style.display='block';console.error(error)}
   })();
