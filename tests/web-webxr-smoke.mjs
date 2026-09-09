@@ -41,7 +41,7 @@ const triangle=geometry('triangle',[p(0,0),p(2,0),p(0,1)]);
 assert.ok(Math.abs(triangle.areaM2-1)<1e-9);
 const polygon=geometry('polygon',[p(0,0),p(2,0),p(2,1),p(1,0.5),p(0,1)]);
 assert.ok(Math.abs(polygon.areaM2-1.5)<1e-9);
-assert.throws(()=>geometry('polygon',[p(0,0),p(2,2),p(0,2),p(2,0)]),/kendi kendini kesiyor/);
+assert.throws(()=>geometry('polygon',[p(0,0),p(2,2),p(0,2),p(2,0)]),'self-crossing polygon must be rejected');
 assert.throws(()=>geometry('rectangle',[p(0,1,0),p(2,1,0),p(0,0,0),p(2,0,.2)]),/yeterince düz/);
 
 const ios=makeContext('Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X)');
