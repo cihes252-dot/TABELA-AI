@@ -35,26 +35,29 @@ jobs:
         run: node tests/web-loader-smoke.mjs
       - name: Run V11.2 FAST FIELD smoke test
         run: node tests/web-fast-field-smoke.mjs
+      - name: Run dominant sign OCR selection test
+        run: node tests/web-fast-ocr-selection.mjs
       - name: Run Android-only WebXR 3D measurement smoke test
         run: node tests/web-webxr-smoke.mjs
-      - name: Verify V11.2.7 stable ROI OCR release contract
+      - name: Verify V11.2.8 dominant sign OCR release contract
         shell: bash
         run: |
           set -euo pipefail
           grep -q 'app/v11_2' index.html
-          grep -q '11.2.7' index.html
-          grep -q 'FAST FIELD 11.2.7' app/v11_2/index.html
-          grep -Fq "serviceWorker.register('./service-worker.js?b=11.2.7'" app/v11_2/index.html
-          grep -q 'fast-field.js?b=11.2.7' app/v11_2/index.html
-          grep -q 'fast-ocr-engine.js?b=11.2.7' app/v11_2/index.html
-          grep -q 'sign-taxonomy.js?b=11.2.7' app/v11_2/index.html
-          grep -q 'webxr-measurement.js?b=11.2.7' app/v11_2/index.html
-          grep -q 'field-diagnostics.js?b=11.2.7' app/v11_2/index.html
-          grep -q 'tabela-ai-v11-2-11.2.7-stable-roi-ocr' app/v11_2/service-worker.js
+          grep -q '11.2.8' index.html
+          grep -q 'FAST FIELD 11.2.8' app/v11_2/index.html
+          grep -Fq "serviceWorker.register('./service-worker.js?b=11.2.8'" app/v11_2/index.html
+          grep -q 'fast-field.js?b=11.2.8' app/v11_2/index.html
+          grep -q 'fast-ocr-engine.js?b=11.2.8' app/v11_2/index.html
+          grep -q 'sign-taxonomy.js?b=11.2.8' app/v11_2/index.html
+          grep -q 'webxr-measurement.js?b=11.2.8' app/v11_2/index.html
+          grep -q 'field-diagnostics.js?b=11.2.8' app/v11_2/index.html
+          grep -q 'tabela-ai-v11-2-11.2.8-dominant-sign-ocr' app/v11_2/service-worker.js
           grep -q 'TARGET_MS=3000' app/v11_2/fast-ocr-engine.js
           grep -q 'singlePass:true' app/v11_2/fast-ocr-engine.js
           grep -q 'tur+eng' app/v11_2/fast-ocr-engine.js
-          grep -q 'darkBackground' app/v11_2/fast-ocr-engine.js
+          grep -q 'dominantLineSelection:true' app/v11_2/fast-ocr-engine.js
+          grep -q 'SAHA HAZIR • GPS ZAYIF' app/v11_2/field-runtime-fix.js
           grep -q 'stable-live-roi' app/v11_2/fast-field.js
           grep -q 'ellipseStrong' app/v10/shape-engine.js
           grep -q 'ios_webxr_disabled' app/v11_2/webxr-measurement.js
