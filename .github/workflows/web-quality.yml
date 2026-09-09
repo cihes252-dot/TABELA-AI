@@ -44,20 +44,21 @@ jobs:
         run: |
           set -euo pipefail
           grep -q 'app/v11_2' index.html
-          grep -q '11.2.9' index.html
-          grep -q 'FAST FIELD 11.2.9' app/v11_2/index.html
-          grep -q 'fast-field.js?b=11.2.9' app/v11_2/index.html
-          grep -q 'fast-ocr-engine.js?b=11.2.9' app/v11_2/index.html
-          grep -q 'field-accuracy-fix.js?b=11.2.9' app/v11_2/index.html
-          grep -q 'sign-taxonomy.js?b=11.2.9' app/v11_2/index.html
-          grep -q 'webxr-measurement.js?b=11.2.9' app/v11_2/index.html
-          grep -q 'field-diagnostics.js?b=11.2.9' app/v11_2/index.html
-          grep -q '11.2.9' app/v11_2/manifest.webmanifest
-          grep -q 'tabela-ai-v11-2-11.2.9-field-accuracy' app/v11_2/service-worker.js
+          grep -q '11.2.10' index.html
+          grep -q 'FAST FIELD 11.2.10' app/v11_2/index.html
+          grep -q 'fast-field.js?b=11.2.10' app/v11_2/index.html
+          grep -q 'fast-ocr-engine.js?b=11.2.10' app/v11_2/index.html
+          grep -q 'field-accuracy-fix.js?b=11.2.10' app/v11_2/index.html
+          grep -q 'sign-taxonomy.js?b=11.2.10' app/v11_2/index.html
+          grep -q 'webxr-measurement.js?b=11.2.10' app/v11_2/index.html
+          grep -q 'field-diagnostics.js?b=11.2.10' app/v11_2/index.html
+          grep -q '11.2.10' app/v11_2/manifest.webmanifest
+          grep -q 'tabela-ai-v11-2-11.2.10-ocr-full-roi' app/v11_2/service-worker.js
           grep -q 'TARGET_MS=3000' app/v11_2/fast-ocr-engine.js
           grep -q 'singlePass:true' app/v11_2/fast-ocr-engine.js
           grep -q 'tur+eng' app/v11_2/fast-ocr-engine.js
-          grep -q 'adaptive-single-pass-text-band' app/v11_2/field-accuracy-fix.js
+          grep -q 'headline-fallback-after-full-roi' app/v11_2/field-accuracy-fix.js
+          grep -q '11.2.10-full-roi-first' app/v11_2/field-accuracy-fix.js
           grep -q 'KAYIT BEKLER' app/v11_2/field-runtime-fix.js
           grep -q 'stable-live-roi' app/v11_2/fast-field.js
           grep -q 'ellipseStrong' app/v10/shape-engine.js
