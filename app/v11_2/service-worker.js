@@ -1,4 +1,4 @@
-const CACHE='tabela-ai-v11-2-11.2.9-field-accuracy';
+const CACHE='tabela-ai-v11-2-11.2.10-ocr-full-roi';
 const CORE=[
   './','./index.html','./manifest.webmanifest','./sign-taxonomy.js','./fast-ocr-engine.js','./field-accuracy-fix.js','./webxr-measurement.js','./fast-field.js','./field-diagnostics.js','./camera-clean-ui.js','./field-runtime-fix.js',
   '../v11_1/resilience.js','../v11_1/field-hardening.js',
