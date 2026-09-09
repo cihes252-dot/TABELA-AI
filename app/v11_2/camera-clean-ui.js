@@ -21,9 +21,9 @@
       #fieldPreflight.field-compact #fieldReadyBadge{font-size:10px!important;padding:5px 8px!important}
       #snapBtn.camera-capture{background:#2d7cff!important;color:#fff!important;flex:1 1 180px!important;font-size:15px!important;padding:13px 16px!important}
       .nav{bottom:calc(7px + env(safe-area-inset-bottom,0px))!important}
-      main{padding-bottom:calc(145px + env(safe-area-inset-bottom,0px))!important}
+      main{padding-bottom:calc(155px + env(safe-area-inset-bottom,0px))!important}
       @media(max-width:600px){
-        main{padding-left:10px!important;padding-right:10px!important;padding-bottom:calc(165px + env(safe-area-inset-bottom,0px))!important}
+        main{padding-left:10px!important;padding-right:10px!important;padding-bottom:calc(190px + env(safe-area-inset-bottom,0px))!important}
         .camera{border-radius:12px!important;min-height:clamp(430px,64vh,560px)!important}
         .camera video,.camera canvas{height:clamp(430px,64vh,560px)!important;min-height:430px!important}
         #scan .card:has(.camera){padding:8px!important}
@@ -67,19 +67,19 @@
   function compactPreflight(){
     const card=$('fieldPreflight'),badge=$('fieldReadyBadge');
     if(!card||!badge)return;
-    const ready=/SAHA HAZIR/i.test(badge.textContent||'');
-    if(ready&&!card.classList.contains('field-expanded'))card.classList.add('field-compact');
+    const compactable=/SAHA HAZIR|GPS ZAYIF/i.test(badge.textContent||'');
+    if(compactable&&!card.classList.contains('field-expanded'))card.classList.add('field-compact');
     if(card.dataset.cleanToggle!=='1'){
       card.dataset.cleanToggle='1';
       card.addEventListener('click',e=>{
         if(e.target.closest('button'))return;
-        if(!/SAHA HAZIR/i.test($('fieldReadyBadge')?.textContent||''))return;
+        if(!/SAHA HAZIR|GPS ZAYIF/i.test($('fieldReadyBadge')?.textContent||''))return;
         card.classList.toggle('field-expanded');
         card.classList.toggle('field-compact',!card.classList.contains('field-expanded'));
       });
       new MutationObserver(()=>{
-        const nowReady=/SAHA HAZIR/i.test(badge.textContent||'');
-        if(nowReady&&!card.classList.contains('field-expanded'))card.classList.add('field-compact');
+        const nowCompact=/SAHA HAZIR|GPS ZAYIF/i.test(badge.textContent||'');
+        if(nowCompact&&!card.classList.contains('field-expanded'))card.classList.add('field-compact');
       }).observe(badge,{childList:true,characterData:true,subtree:true});
     }
   }
