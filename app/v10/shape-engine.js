@@ -34,6 +34,7 @@
     }
     return best;
   }
+  function rectType(aspect){return aspect>.84&&aspect<1.18?'square':aspect>=1.18?'horizontal-rectangle':'vertical-rectangle'}
   async function detect(data){
     const img=await load(data),scale=Math.min(1,420/img.width),w=Math.max(140,Math.round(img.width*scale)),h=Math.max(100,Math.round(img.height*scale));
     const c=canvas(w,h),x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0,w,h);const d=x.getImageData(0,0,w,h).data,g=new Uint8Array(w*h);for(let i=0,p=0;i<d.length;i+=4,p++)g[p]=Math.round(.299*d[i]+.587*d[i+1]+.114*d[i+2]);
@@ -49,14 +50,16 @@
     const boundaryDetected=!!best;
     if(!best)best={x:Math.round(w*.08),y:Math.round(h*.13),w:Math.round(w*.84),h:Math.round(h*.72),count:0,score:0,source:'none'};
     let b=best,aspect=b.w/b.h,st=shapeStats(edge,w,h,b),sp=rowSpans(edge,w,h,b),type='freeform';const top=Math.max(sp[0],sp[1]),mid=sp[2],bottom=Math.max(sp[3],sp[4]);
-    if(best.source==='text-cluster')type=aspect>.84&&aspect<1.18?'square':aspect>=1.18?'horizontal-rectangle':'vertical-rectangle';
+    const frameTouches=touchesFrame(b,w,h);
+    const ellipseStrong=frameTouches===0&&mid>.40&&top<mid*.82&&bottom<mid*.82&&st.ellipse>st.rect+.12&&st.ellipse>.36;
+    if(best.source==='text-cluster')type=rectType(aspect);
     else if(Math.min(top,bottom)<Math.max(top,bottom)*.53&&mid>.42)type='triangle';
-    else if(st.ellipse>st.rect+.08&&touchesFrame(b,w,h)===0)type=aspect>.83&&aspect<1.20?'circle':'oval';
-    else if(st.rect>.19){type=aspect>.84&&aspect<1.18?'square':aspect>=1.18?'horizontal-rectangle':'vertical-rectangle'}
+    else if(ellipseStrong)type=aspect>.83&&aspect<1.20?'circle':'oval';
+    else if(st.rect>.16||aspect>=1.35||aspect<=.74)type=rectType(aspect);
     else if(aspect>.62&&aspect<1.65)type='polygon';
     const pad=.045*Math.min(b.w,b.h);b={x:clamp(b.x-pad,0,w-1),y:clamp(b.y-pad,0,h-1),w:clamp(b.w+2*pad,1,w),h:clamp(b.h+2*pad,1,h)};b.w=Math.min(b.w,w-b.x);b.h=Math.min(b.h,h-b.y);
     const frameTouch=touchesFrame(b,w,h),sourceBonus=best.source==='text-cluster'?10:5,confidence=Math.round(clamp(50+Math.abs(st.rect-st.ellipse)*48+(best.count?sourceBonus:0)+(frameTouch===0?8:0),35,94));
-    return{shapeType:type,shapeLabel:labels[type]||type,confidence,boundaryDetected,boundarySource:boundaryDetected?best.source:'fallback-box',bbox:{x:b.x/scale,y:b.y/scale,w:b.w/scale,h:b.h/scale},debug:{aspect:+aspect.toFixed(2),rect:+st.rect.toFixed(2),ellipse:+st.ellipse.toFixed(2),componentCount:best.count||0,frameTouches:frameTouch,candidateSource:best.source},version:'10.2-sign-candidate-guard'};
+    return{shapeType:type,shapeLabel:labels[type]||type,confidence,boundaryDetected,boundarySource:boundaryDetected?best.source:'fallback-box',bbox:{x:b.x/scale,y:b.y/scale,w:b.w/scale,h:b.h/scale},debug:{aspect:+aspect.toFixed(2),rect:+st.rect.toFixed(2),ellipse:+st.ellipse.toFixed(2),ellipseStrong,topSpan:+top.toFixed(2),midSpan:+mid.toFixed(2),bottomSpan:+bottom.toFixed(2),componentCount:best.count||0,frameTouches:frameTouch,candidateSource:best.source},version:'10.3-rectangle-first-sign-shape'};
   }
-  window.TabelaShape={detect,labels,version:'10.2-sign-candidate-guard'};
+  window.TabelaShape={detect,labels,version:'10.3-rectangle-first-sign-shape'};
 })();
