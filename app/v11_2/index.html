@@ -39,7 +39,7 @@
       html=html.replace('<div id="scanframe" class="scanframe"></div>','');
       html=html.replace('Tabelayı kadrajda mümkün olduğunca büyük gösterin.','Kamera tüm görüntüyü tarar; herhangi bir sabit oval veya şekil kılavuzu kullanılmaz.');
       const storageScript='<script src="./storage-engine.js"><\/script>';
-      const add='<script src="./storage-engine.js"><\/script><script src="../v11_1/resilience.js?b=11.2.6"><\/script><script src="../v11_2/sign-taxonomy.js?b=11.2.6"><\/script><script src="../v11_2/fast-ocr-engine.js?b=11.2.6"><\/script><script src="../v11_2/webxr-measurement.js?b=11.2.6"><\/script><script src="../v11_2/fast-field.js?b=11.2.6"><\/script><script src="../v11_2/field-diagnostics.js?b=11.2.6"><\/script><script src="../v11_1/field-hardening.js?b=11.2.6"><\/script><script src="../v11_2/camera-clean-ui.js?b=11.2.6-ui1"><\/script>';
+      const add='<script src="./storage-engine.js"><\/script><script src="../v11_1/resilience.js?b=11.2.6"><\/script><script src="../v11_2/sign-taxonomy.js?b=11.2.6"><\/script><script src="../v11_2/fast-ocr-engine.js?b=11.2.6"><\/script><script src="../v11_2/webxr-measurement.js?b=11.2.6"><\/script><script src="../v11_2/fast-field.js?b=11.2.6"><\/script><script src="../v11_2/field-diagnostics.js?b=11.2.6"><\/script><script src="../v11_1/field-hardening.js?b=11.2.6"><\/script><script src="../v11_2/camera-clean-ui.js?b=11.2.6-ui2"><\/script>';
       html=html.replace(storageScript,add);
       const oldSW="if('serviceWorker'in navigator)navigator.serviceWorker.register('./service-worker.js?b=11.0.0').catch(()=>{});";
       html=html.replace(oldSW,"if('serviceWorker'in navigator)navigator.serviceWorker.register('../v11_2/service-worker.js?b=11.2.6').catch(()=>{});");
