@@ -1,6 +1,6 @@
-const CACHE='tabela-ai-v11-2-11.2.5-webxr-bridge';
+const CACHE='tabela-ai-v11-2-11.2.6-truth-first';
 const CORE=[
-  './','./index.html','./manifest.webmanifest','./sign-taxonomy.js','./fast-ocr-engine.js','./webxr-measurement.js','./fast-field.js',
+  './','./index.html','./manifest.webmanifest','./sign-taxonomy.js','./fast-ocr-engine.js','./webxr-measurement.js','./fast-field.js','./field-diagnostics.js',
   '../v11_1/resilience.js','../v11_1/field-hardening.js',
   '../v11/index.html','../v11/quality-engine.js','../v11/multiframe-engine.js','../v11/segmentation-engine.js',
   '../v11/perspective-engine.js','../v11/ocr-ensemble.js','../v11/fingerprint-engine.js','../v11/duplicate-engine.js',
