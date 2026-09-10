@@ -1,6 +1,6 @@
-const CACHE='tabela-ai-v11-2-11.2.10-ocr-full-roi';
+const CACHE='tabela-ai-v11-2-11.2.11-ocr-roi-guard';
 const CORE=[
-  './','./index.html','./manifest.webmanifest','./sign-taxonomy.js','./fast-ocr-engine.js','./field-accuracy-fix.js','./webxr-measurement.js','./fast-field.js','./field-diagnostics.js','./camera-clean-ui.js','./field-runtime-fix.js',
+  './','./index.html','./manifest.webmanifest','./sign-taxonomy.js','./fast-ocr-engine.js','./ocr-roi-guard.js','./field-accuracy-fix.js','./webxr-measurement.js','./fast-field.js','./field-diagnostics.js','./camera-clean-ui.js','./field-runtime-fix.js',
   '../v11_1/resilience.js','../v11_1/field-hardening.js',
   '../v11/index.html','../v11/quality-engine.js','../v11/multiframe-engine.js','../v11/segmentation-engine.js',
   '../v11/perspective-engine.js','../v11/ocr-ensemble.js','../v11/fingerprint-engine.js','../v11/duplicate-engine.js',
