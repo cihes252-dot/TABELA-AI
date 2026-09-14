@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+  <meta name="theme-color" content="#080e18">
+  <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
+  <title>TABELA AI • Clean Field</title>
+  <link rel="manifest" href="./manifest.webmanifest?b=12.0.0">
+  <link rel="stylesheet" href="./app.css?b=12.0.0">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
+  <script src="./app.js?b=12.0.0" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <button class="icon-btn" type="button" id="backBtn" aria-label="Geri">‹</button>
+    <div class="app-title"><strong>TABELA AI</strong><span>Clean Field</span></div>
+    <button class="icon-btn" type="button" id="reportBtn" aria-label="Rapor">📊</button>
+  </header>
+
+  <main class="main-content">
+    <section class="section-head">
+      <div><h1>Saha Taraması</h1><p>Otomatik tabela alanı • tek Türkçe OCR • güvenli kayıt</p></div>
+      <span class="status-pill warn" id="systemStatus">Hazırlanıyor</span>
+    </section>
+
+    <section class="summary-grid" aria-label="Saha özeti">
+      <article class="summary-card"><span>Tabela</span><strong id="recordCount">0</strong></article>
+      <article class="summary-card"><span>OCR</span><strong class="small-value" id="ocrReady">Hazır değil</strong></article>
+      <article class="summary-card wide"><span>Doğrulanmış toplam alan</span><strong id="totalArea">—</strong><small>Yalnız gerçek veya operatör doğrulamalı metre verisi</small></article>
+    </section>
+
+    <section class="scan-card">
+      <div class="scan-card-title"><div><h2>Görsel yükle veya kamera kullan</h2><p id="hintText">Kamera açıldığında kalıcı oval/şekil kılavuzu yoktur. Tabela bulunduğunda yalnız gerçek aday çerçevesi görünür.</p></div></div>
+      <div class="action-row" id="startActions">
+        <button class="btn primary" id="openCameraBtn" type="button">📷 Canlı Kamera</button>
+        <button class="btn secondary" id="uploadBtn" type="button">🖼️ Fotoğraf Yükle</button>
+        <input id="fileInput" type="file" accept="image/*" hidden>
+      </div>
+
+      <div class="scanner hidden" id="scanner">
+        <div class="camera-frame" id="cameraFrame">
+          <video id="video" autoplay muted playsinline></video>
+          <canvas id="photoCanvas" class="hidden"></canvas>
+          <canvas id="overlayCanvas"></canvas>
+          <div class="camera-topline"><span id="gpsBadge">GPS bekleniyor</span><span id="metricBadge">WEB • metre kapalı</span></div>
+          <div class="camera-bottomline" id="detectBadge">Tabela aranıyor…</div>
+        </div>
+        <div class="capture-row">
+          <button class="btn secondary" id="stopBtn" type="button">Kapat</button>
+          <button class="btn primary grow" id="captureBtn" type="button" disabled>📸 Fotoğraf Çek</button>
+          <button class="btn secondary hidden" id="retakeBtn" type="button">↻ Yeniden</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="result-card hidden" id="resultCard">
+      <div class="result-head"><div><h2>Analiz Sonucu</h2><p id="resultStatus">Fotoğraf hazırlanıyor…</p></div><span class="status-pill" id="qualityBadge">—</span></div>
+
+      <div class="field-block">
+        <label for="ocrText">Tabela yazısı</label>
+        <textarea id="ocrText" rows="3" placeholder="OCR sonucu burada görünecek"></textarea>
+        <div class="inline-status"><span id="ocrStatus">OCR bekleniyor</span><span id="ocrTime">—</span></div>
+      </div>
+
+      <div class="two-col">
+        <div class="field-block"><label for="signType">Tabela türü</label><select id="signType"></select></div>
+        <div class="field-block"><label for="projectName">Proje</label><input id="projectName" value="SAHA-001"></div>
+      </div>
+
+      <div class="measurement-card">
+        <div class="measurement-head"><div><strong>Gerçek ölçüm</strong><small id="metricSource">Web tarayıcıda gerçek metre kaynağı yok.</small></div><span class="status-pill warn" id="metricStatus">ÖLÇÜ YOK</span></div>
+        <div class="metric-grid"><div><span>Genişlik</span><strong id="widthValue">—</strong></div><div><span>Yükseklik</span><strong id="heightValue">—</strong></div><div><span>Alan</span><strong id="areaValue">—</strong></div></div>
+        <button class="link-btn" id="manualMeasureBtn" type="button">Elle doğrulanmış ölçü gir</button>
+        <div class="manual-metric hidden" id="manualMetricBox"><input id="manualWidth" inputmode="decimal" placeholder="En (m)"><input id="manualHeight" inputmode="decimal" placeholder="Boy (m)"><button class="btn secondary" id="applyManualMetricBtn" type="button">Doğrula</button></div>
+      </div>
+
+      <div class="company-card">
+        <strong id="companyName">Firma/marka OCR ile belirlenecek</strong>
+        <span id="sectorText">Sektör: —</span>
+        <a id="googleSearchLink" target="_blank" rel="noopener" class="link-btn hidden">🔎 Google'da ara</a>
+      </div>
+
+      <div class="location-line"><span id="locationText">Konum bekleniyor…</span></div>
+      <div class="save-row"><button class="btn primary" id="saveBtn" type="button">✓ Kaydet</button><button class="btn secondary" id="newBtn" type="button">Yeni Tabela</button></div>
+    </section>
+
+    <section class="records-card hidden" id="recordsCard"><div class="records-head"><h2>Son Kayıtlar</h2><button class="link-btn" id="exportBtn" type="button">CSV indir</button></div><div id="recordsList"></div></section>
+  </main>
+
+  <div class="toast hidden" id="toast" role="status"></div>
+</body>
+</html>
