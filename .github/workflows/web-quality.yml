@@ -29,17 +29,19 @@ jobs:
           node --check app/v11_2/fast-ocr-engine.js
       - name: Run measurement trust smoke tests
         run: node tests/web-measurement-smoke.mjs
-      - name: Run dominant sign OCR selection test
+      - name: Run Turkish sign OCR selection tests
         run: node tests/web-fast-ocr-selection.mjs
-      - name: Run V12 clean field smoke test
+      - name: Run V12.1 clean field smoke test
         run: node tests/web-v12-clean-smoke.mjs
-      - name: Verify active V12 release
+      - name: Verify active V12.1 release
         run: |
           grep -q 'app/v12' index.html
-          grep -q '12.0.0' index.html
-          grep -q 'Clean Field' app/v12/index.html
+          grep -q '12.1.0' index.html
+          grep -q 'Clean Field 12.1' app/v12/index.html
           grep -q 'TabelaFastOCR.run' app/v12/app.js
+          grep -q 'Gürültülü OCR reddedildi' app/v12/app.js
+          grep -q 'interiorGain' app/v12/app.js
           grep -q 'Pikselden metre üretilmez' app/v12/app.js
-          ! grep -q 'camera-clean-ui' app/v12/index.html
-          ! grep -q 'manual-ocr-roi' app/v12/index.html
+          grep -q 'tabela-ai-v12-clean-field-12.1.0' app/v12/service-worker.js
+          ! grep -qi 'oval.*kılavuz' app/v12/index.html
           ! grep -q 'webxr-measurement' app/v12/index.html
