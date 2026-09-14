@@ -5,18 +5,18 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
   <meta name="theme-color" content="#080e18">
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
-  <title>TABELA AI • Clean Field</title>
-  <link rel="manifest" href="./manifest.webmanifest?b=12.0.0">
-  <link rel="stylesheet" href="./app.css?b=12.0.0">
+  <title>TABELA AI • Clean Field 12.1</title>
+  <link rel="manifest" href="./manifest.webmanifest?b=12.1.0">
+  <link rel="stylesheet" href="./app.css?b=12.1.0">
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
-  <script src="../v11/measurement-engine.js?b=12.0.0" defer></script>
-  <script src="../v11_2/fast-ocr-engine.js?b=12.0.0" defer></script>
-  <script src="./app.js?b=12.0.0" defer></script>
+  <script src="../v11/measurement-engine.js?b=12.1.0" defer></script>
+  <script src="../v11_2/fast-ocr-engine.js?b=12.1.0" defer></script>
+  <script src="./app.js?b=12.1.0" defer></script>
 </head>
 <body>
   <header class="app-header">
     <button class="icon-btn" type="button" id="backBtn" aria-label="Geri">‹</button>
-    <div class="app-title"><strong>TABELA AI</strong><span>Clean Field</span></div>
+    <div class="app-title"><strong>TABELA AI</strong><span>Clean Field 12.1</span></div>
     <button class="icon-btn" type="button" id="reportBtn" aria-label="Rapor">📊</button>
   </header>
 
@@ -33,7 +33,7 @@
     </section>
 
     <section class="scan-card">
-      <div class="scan-card-title"><div><h2>Görsel yükle veya kamera kullan</h2><p id="hintText">Kamera görüntüsü temiz tutulur. Tabela bulunduğunda yalnız gerçek aday çerçevesi görünür.</p></div></div>
+      <div class="scan-card-title"><div><h2>Kamera</h2><p id="hintText">Tabela bulunduğunda yalnız ince yeşil sınır görünür. Fotoğrafı siz çekersiniz.</p></div></div>
       <div class="action-row" id="startActions">
         <button class="btn primary" id="openCameraBtn" type="button">📷 Canlı Kamera</button>
         <button class="btn secondary" id="uploadBtn" type="button">🖼️ Fotoğraf Yükle</button>
@@ -45,8 +45,8 @@
           <video id="video" autoplay muted playsinline></video>
           <canvas id="photoCanvas" class="hidden"></canvas>
           <canvas id="overlayCanvas"></canvas>
-          <div class="camera-topline"><span id="gpsBadge">GPS bekleniyor</span><span id="metricBadge">WEB • metre kapalı</span></div>
-          <div class="camera-bottomline" id="detectBadge">Tabela aranıyor…</div>
+          <div class="camera-topline"><span id="gpsBadge">GPS bekleniyor</span><span id="metricBadge" class="hidden">WEB • metre kapalı</span></div>
+          <div class="camera-bottomline" id="detectBadge" aria-live="polite">Tabela aranıyor…</div>
         </div>
         <div class="capture-row">
           <button class="btn secondary" id="stopBtn" type="button">Kapat</button>
@@ -63,7 +63,7 @@
         <label for="ocrText">Tabela yazısı</label>
         <textarea id="ocrText" rows="3" placeholder="OCR sonucu burada görünecek"></textarea>
         <div class="inline-status"><span id="ocrStatus">OCR bekleniyor</span><span id="ocrTime">—</span></div>
-        <button class="link-btn" id="reanalyzeBtn" type="button">Seçili alanı tekrar OCR yap</button>
+        <button class="link-btn" id="reanalyzeBtn" type="button">Alanı tekrar oku</button>
       </div>
 
       <div class="two-col">
