@@ -24,56 +24,38 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check JavaScript syntax
+      - name: Check active JavaScript syntax
         shell: bash
         run: |
           set -euo pipefail
-          for f in app/v11/measurement-engine.js app/v11/quality-engine.js app/v11/multiframe-engine.js app/v11/segmentation-engine.js app/v11/perspective-engine.js app/v11/ocr-ensemble.js app/v11/fingerprint-engine.js app/v11/duplicate-engine.js app/v11/orientation-engine.js app/v11/address-engine.js app/v11/material-engine.js app/v11/storage-engine.js app/v11_1/resilience.js app/v11_1/field-hardening.js app/v11_2/sign-taxonomy.js app/v11_2/fast-ocr-engine.js app/v11_2/ocr-roi-guard.js app/v11_2/field-accuracy-fix.js app/v11_2/webxr-measurement.js app/v11_2/fast-field.js app/v11_2/manual-ocr-roi.js app/v11_2/field-diagnostics.js app/v11_2/camera-clean-ui.js app/v11_2/field-runtime-fix.js app/v11_2/service-worker.js app/v10/shape-engine.js app/v10/ocr-engine.js; do node --check "$f"; done
-      - name: Run measurement trust smoke tests
+          node --check app/v12/app.js
+          node --check app/v12/service-worker.js
+          node --check app/v11/measurement-engine.js
+          node --check app/v11_2/fast-ocr-engine.js
+      - name: Run trusted measurement smoke tests
         run: node tests/web-measurement-smoke.mjs
-      - name: Run V11.1 loader smoke test
-        run: node tests/web-loader-smoke.mjs
-      - name: Run V11.2 FAST FIELD smoke test
-        run: node tests/web-fast-field-smoke.mjs
-      - name: Run dominant sign OCR selection test
+      - name: Run Turkish OCR selection tests
         run: node tests/web-fast-ocr-selection.mjs
-      - name: Run Android-only WebXR 3D measurement smoke test
-        run: node tests/web-webxr-smoke.mjs
-      - name: Verify V11.2.12 manual OCR release contract
+      - name: Run V12 clean field smoke test
+        run: node tests/web-v12-clean-smoke.mjs
+      - name: Verify V12 clean release contract
         shell: bash
         run: |
           set -euo pipefail
-          grep -q 'app/v11_2' index.html
-          grep -q '11.2.12' index.html
-          grep -q 'FAST FIELD 11.2.12' app/v11_2/index.html
-          grep -Fq "serviceWorker.register('./service-worker.js?b=11.2.12'" app/v11_2/index.html
-          grep -q 'fast-field.js?b=11.2.12' app/v11_2/index.html
-          grep -q 'fast-ocr-engine.js?b=11.2.12' app/v11_2/index.html
-          grep -q 'ocr-roi-guard.js?b=11.2.12' app/v11_2/index.html
-          grep -q 'manual-ocr-roi.js?b=11.2.12' app/v11_2/index.html
-          grep -q 'field-accuracy-fix.js?b=11.2.12' app/v11_2/index.html
-          grep -q 'sign-taxonomy.js?b=11.2.12' app/v11_2/index.html
-          grep -q 'webxr-measurement.js?b=11.2.12' app/v11_2/index.html
-          grep -q 'field-diagnostics.js?b=11.2.12' app/v11_2/index.html
-          grep -q 'tabela-ai-v11-2-11.2.12-manual-ocr-roi' app/v11_2/service-worker.js
-          grep -q 'manual-operator-exact' app/v11_2/ocr-roi-guard.js
-          grep -q 'OCR alanını düzelt' app/v11_2/manual-ocr-roi.js
-          grep -q 'manualOcrRoi:true' app/v11_2/manual-ocr-roi.js
-          grep -q 'TARGET_MS=3000' app/v11_2/fast-ocr-engine.js
-          grep -q 'singlePass:true' app/v11_2/fast-ocr-engine.js
-          grep -q 'tur+eng' app/v11_2/fast-ocr-engine.js
-          grep -q 'headline-fallback-after-full-roi' app/v11_2/field-accuracy-fix.js
-          grep -q 'lowConfidenceRejected' app/v11_2/field-accuracy-fix.js
-          grep -q 'KAYIT BEKLER' app/v11_2/field-runtime-fix.js
-          grep -q 'stable-live-roi' app/v11_2/fast-field.js
-          grep -q 'ellipseStrong' app/v10/shape-engine.js
-          grep -q 'ios_webxr_disabled' app/v11_2/webxr-measurement.js
-          grep -q "webxrPlatform:'android'" app/v11_2/webxr-measurement.js
-          grep -q 'native-ios-arkit-lidar' app/v11_2/field-diagnostics.js
-          grep -q 'web-no-metric' app/v11_2/field-diagnostics.js
-          grep -q 'Pylon / direk tabelası' app/v11_2/sign-taxonomy.js
-          grep -q 'boundaryDetected' app/v10/shape-engine.js
-          grep -q '11.1.2-indexeddb-atomic' app/v11/storage-engine.js
+          grep -q 'app/v12' index.html
+          grep -q '12.0.0' index.html
+          grep -q 'Clean Field' app/v12/index.html
+          grep -q 'Canlı Kamera' app/v12/index.html
+          grep -q 'Fotoğraf Yükle' app/v12/index.html
+          grep -q 'fast-ocr-engine.js' app/v12/index.html
+          grep -q 'measurement-engine.js' app/v12/index.html
+          grep -q 'tabela-ai-v12-clean-field-12.0.0' app/v12/service-worker.js
+          grep -q 'TabelaFastOCR.run' app/v12/app.js
+          grep -q 'autoMetric:true' app/v12/app.js
+          grep -q 'Pikselden metre üretilmez' app/v12/app.js
+          ! grep -q 'camera-clean-ui' app/v12/index.html
+          ! grep -q 'field-runtime-fix' app/v12/index.html
+          ! grep -q 'webxr-measurement' app/v12/index.html
 
   deploy:
     needs: validate
