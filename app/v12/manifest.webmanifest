@@ -1,0 +1,11 @@
+{
+  "name":"TABELA AI Clean Field",
+  "short_name":"TABELA AI",
+  "start_url":"./?build=12.0.0",
+  "scope":"./",
+  "display":"standalone",
+  "background_color":"#080e18",
+  "theme_color":"#080e18",
+  "lang":"tr",
+  "description":"Tabela tespiti, Türkçe OCR, GPS, güvenli ölçüm ve saha kayıt sistemi"
+}
