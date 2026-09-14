@@ -9,6 +9,8 @@
   <link rel="manifest" href="./manifest.webmanifest?b=12.0.0">
   <link rel="stylesheet" href="./app.css?b=12.0.0">
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
+  <script src="../v11/measurement-engine.js?b=12.0.0" defer></script>
+  <script src="../v11_2/fast-ocr-engine.js?b=12.0.0" defer></script>
   <script src="./app.js?b=12.0.0" defer></script>
 </head>
 <body>
@@ -61,6 +63,7 @@
         <label for="ocrText">Tabela yazısı</label>
         <textarea id="ocrText" rows="3" placeholder="OCR sonucu burada görünecek"></textarea>
         <div class="inline-status"><span id="ocrStatus">OCR bekleniyor</span><span id="ocrTime">—</span></div>
+        <button class="link-btn" id="reanalyzeBtn" type="button">Seçili alanı tekrar OCR yap</button>
       </div>
 
       <div class="two-col">
