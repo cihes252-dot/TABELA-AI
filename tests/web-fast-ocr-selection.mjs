@@ -30,4 +30,15 @@ const single=t.chooseText({text:'BAŞAKŞEHİR BELEDİYESİ',words:[
 ]});
 assert.equal(single.text,'BAŞAKŞEHİR BELEDİYESİ');
 
-console.log('V11.2.8 dominant sign OCR selection tests passed');
+const blockWords=t.collectWords({blocks:[{paragraphs:[{lines:[{words:[
+  {text:'OLEX',confidence:92,bbox:{x0:10,y0:10,x1:95,y1:48}},
+  {text:'WINDOW',confidence:84,bbox:{x0:105,y0:12,x1:190,y1:45}}
+]}]}]}]});
+assert.equal(blockWords.length,2,'Tesseract blocks must be flattened to words');
+assert.equal(blockWords[0].text,'OLEX');
+
+assert.equal(t.plausibility('OLEX PPF WINDOW FILM',86).accepted,true,'Real sign-like text should pass plausibility gate');
+assert.equal(t.plausibility('3 I j vi di',47).accepted,false,'Fragmented OCR noise must be rejected');
+assert.equal(t.plausibility('BAŞAKŞEHİR',91).accepted,true,'Turkish brand/city text should pass');
+
+console.log('V11.2.13 single-pass Turkish sign OCR selection tests passed');
