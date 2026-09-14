@@ -34,27 +34,28 @@ jobs:
           node --check app/v11_2/fast-ocr-engine.js
       - name: Run trusted measurement smoke tests
         run: node tests/web-measurement-smoke.mjs
-      - name: Run Turkish OCR selection tests
+      - name: Run Turkish sign OCR selection tests
         run: node tests/web-fast-ocr-selection.mjs
-      - name: Run V12 clean field smoke test
+      - name: Run V12.1 clean field smoke test
         run: node tests/web-v12-clean-smoke.mjs
-      - name: Verify V12 clean release contract
+      - name: Verify V12.1 clean release contract
         shell: bash
         run: |
           set -euo pipefail
           grep -q 'app/v12' index.html
-          grep -q '12.0.0' index.html
-          grep -q 'Clean Field' app/v12/index.html
+          grep -q '12.1.0' index.html
+          grep -q 'Clean Field 12.1' app/v12/index.html
           grep -q 'Canlı Kamera' app/v12/index.html
           grep -q 'Fotoğraf Yükle' app/v12/index.html
           grep -q 'fast-ocr-engine.js' app/v12/index.html
           grep -q 'measurement-engine.js' app/v12/index.html
-          grep -q 'tabela-ai-v12-clean-field-12.0.0' app/v12/service-worker.js
+          grep -q 'tabela-ai-v12-clean-field-12.1.0' app/v12/service-worker.js
           grep -q 'TabelaFastOCR.run' app/v12/app.js
+          grep -q 'Gürültülü OCR reddedildi' app/v12/app.js
+          grep -q 'interiorGain' app/v12/app.js
           grep -q 'autoMetric:true' app/v12/app.js
           grep -q 'Pikselden metre üretilmez' app/v12/app.js
-          ! grep -q 'camera-clean-ui' app/v12/index.html
-          ! grep -q 'field-runtime-fix' app/v12/index.html
+          ! grep -qi 'oval.*kılavuz' app/v12/index.html
           ! grep -q 'webxr-measurement' app/v12/index.html
 
   deploy:
